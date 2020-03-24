@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"github.com/rs/zerolog"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -45,7 +43,7 @@ func readWIF(filename string) *ecc.PrivateKey {
 func readConfigFile(cfg *Config) {
 	_, err  := toml.DecodeFile("config.toml", &cfg)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Panic().Msg(err.Error())
 	}
 }
 
@@ -60,27 +58,11 @@ func getAddr(port int) string {
 	return ":" + strconv.Itoa(port)
 }
 
-func getLevel(level string) zerolog.Level {
-	switch strings.ToLower(level) {
-	case "debug":
-		return zerolog.DebugLevel
-	case "info":
-		return zerolog.InfoLevel
-	case "warning":
-		return zerolog.WarnLevel
-	case "error":
-		return zerolog.ErrorLevel
-	default:
-		return zerolog.InfoLevel
-	}
-}
-
 func main() {
 	app := App{}
 	cfg := Config{}
 	readConfigFile(&cfg)
 	readEnv(&cfg)
-	zerolog.SetGlobalLevel(getLevel(cfg.Server.LogLevel))
-	app.Initialize(readWIF(cfg.BlockChain.PrivateKeyPath), cfg.Broker.TopicOffsetPath)
+	app.Initialize(readWIF(cfg.BlockChain.PrivateKeyPath), cfg.Broker.TopicOffsetPath, cfg.Server.LogLevel)
 	app.Run(getAddr(cfg.Server.Port))
 }
