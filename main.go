@@ -41,7 +41,7 @@ func readWIF(filename string) *ecc.PrivateKey {
 
 
 func readConfigFile(cfg *Config) {
-    _, err  := toml.DecodeFile("config.toml", &cfg)
+    _, err  := toml.DecodeFile("/etc/casino/config.toml", &cfg)
     if err != nil {
         log.Panic().Msg(err.Error())
     }
