@@ -2,9 +2,10 @@ package main
 
 import (
     "encoding/json"
-    "github.com/eoscanada/eos-go/ecc"
+    "github.com/eoscanada/eos-go"
     "github.com/gorilla/mux"
     "github.com/rs/zerolog/log"
+    "io/ioutil"
     "net/http"
 )
 
@@ -14,14 +15,23 @@ type JsonResponse = map[string]interface{}
 
 type App struct {
     Router *mux.Router
-    PrivateKey *ecc.PrivateKey
-    TopicOffsetPath string
+    Broker struct {
+        TopicOffsetPath string
+    }
+    BlockChain struct {
+        API *eos.API
+        KeyBag eos.KeyBag
+        ChainID string
+    }
 }
 
-func (app *App) Initialize(pk *ecc.PrivateKey, offsetPath string, level string) {
+func (app *App) Initialize(wif string, offsetPath string, blockChainUrl string, chainID string,
+    level string) {
     app.Router = mux.NewRouter()
-    app.PrivateKey = pk
-    app.TopicOffsetPath = offsetPath
+    app.BlockChain.API = eos.New(blockChainUrl)
+    app.BlockChain.ChainID = chainID
+    app.BlockChain.KeyBag.Add(wif)
+    app.Broker.TopicOffsetPath = offsetPath
 
     InitLogger(level)
     app.InitializeRoutes()
@@ -49,7 +59,36 @@ func (app *App) PingQuery(writer ResponseWriter, req *Request) {
 
 func (app *App) SignQuery(writer ResponseWriter, req *Request) {
     log.Info().Msg("Called /sign_transaction")
-    // TODO
+    rawTransaction, _ := ioutil.ReadAll(req.Body)
+    tx := eos.SignedTransaction{}
+    err := json.Unmarshal(rawTransaction, &tx)
+    if err != nil {
+        log.Debug().Msg(err.Error())
+        respondWithError(writer, http.StatusBadRequest, "failed to deserialize transaction")
+        return
+    }
+
+    signedTx, signError := app.SignTransaction(&tx)
+    if signError != nil {
+        log.Warn().Msg(signError.Error())
+        respondWithError(writer, http.StatusInternalServerError, "failed to sign transaction")
+        return
+    }
+    packedTrx, _ := signedTx.Pack(eos.CompressionNone)
+    _, sendError := app.BlockChain.API.PushTransaction(packedTrx)
+    if sendError != nil {
+        log.Debug().Msg(sendError.Error())
+        respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain: " + sendError.Error())
+        return
+    }
+
+    respondWithJSON(writer, http.StatusOK, JsonResponse{"result":"ok"})
+}
+
+func(app *App) SignTransaction (trx *eos.SignedTransaction) (*eos.SignedTransaction, error) {
+    blockchain := app.BlockChain
+    publicKeys, _ := blockchain.KeyBag.AvailableKeys()
+    return blockchain.KeyBag.Sign(trx, []byte(blockchain.ChainID), publicKeys[0])
 }
 
 func (app *App) InitializeRoutes() {
