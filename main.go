@@ -6,7 +6,6 @@ import (
     "strings"
 
     "github.com/BurntSushi/toml"
-    "github.com/eoscanada/eos-go/ecc"
     "github.com/kelseyhightower/envconfig"
 
     "github.com/rs/zerolog/log"
@@ -23,20 +22,18 @@ type Config struct {
     }
     BlockChain struct {
         PrivateKeyPath string `envconfig:"PRIVATEKEY_PATH"`
+        Url string
+        ChainID string
     }
 }
 
-func readWIF(filename string) *ecc.PrivateKey {
+func readWIF(filename string) string {
     content, err := ioutil.ReadFile(filename)
     if err != nil {
         log.Panic().Msg(err.Error())
     }
     wif := strings.TrimSpace(strings.TrimSuffix(string(content), "\n"))
-    pk, err := ecc.NewPrivateKey(wif)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-    return pk
+    return wif
 }
 
 
@@ -63,6 +60,9 @@ func main() {
     cfg := Config{}
     readConfigFile(&cfg)
     readEnv(&cfg)
-    app.Initialize(readWIF(cfg.BlockChain.PrivateKeyPath), cfg.Broker.TopicOffsetPath, cfg.Server.LogLevel)
+    log.Info().Msg(cfg.Broker.TopicOffsetPath)
+    app.Initialize(
+        readWIF(cfg.BlockChain.PrivateKeyPath), cfg.BlockChain.Url, cfg.BlockChain.ChainID,
+        cfg.Broker.TopicOffsetPath, cfg.Server.LogLevel)
     app.Run(getAddr(cfg.Server.Port))
 }
