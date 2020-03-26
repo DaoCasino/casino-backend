@@ -78,7 +78,7 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
     _, sendError := app.BlockChain.API.PushTransaction(packedTrx)
     if sendError != nil {
         log.Debug().Msg(sendError.Error())
-        respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain " )
+        respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain: " + sendError.Error())
         return
     }
 
