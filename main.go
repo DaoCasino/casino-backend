@@ -1,14 +1,13 @@
 package main
 
 import (
+    "github.com/BurntSushi/toml"
+    broker "github.com/DaoCasino/platform-action-monitor-client"
+    "github.com/kelseyhightower/envconfig"
+    "github.com/rs/zerolog/log"
     "io/ioutil"
     "strconv"
     "strings"
-
-    "github.com/BurntSushi/toml"
-    "github.com/kelseyhightower/envconfig"
-
-    "github.com/rs/zerolog/log"
 )
 
 
@@ -18,7 +17,9 @@ type Config struct {
         LogLevel string `envconfig:"LOG_LEVEL"`
     }
     Broker struct {
-        TopicOffsetPath string `envconfig:"OFFSET_PATH""`
+        TopicOffsetPath string `envconfig:"OFFSET_PATH"`
+        Url string `envconfig:"BROKER_URL"`
+        TopicID broker.EventType
     }
     BlockChain struct {
         PrivateKeyPath string `envconfig:"PRIVATEKEY_PATH"`
@@ -60,9 +61,8 @@ func main() {
     cfg := Config{}
     readConfigFile(&cfg)
     readEnv(&cfg)
-    log.Info().Msg(cfg.Broker.TopicOffsetPath)
     app.Initialize(
         readWIF(cfg.BlockChain.PrivateKeyPath), cfg.BlockChain.Url, cfg.BlockChain.ChainID,
-        cfg.Broker.TopicOffsetPath, cfg.Server.LogLevel)
+        cfg.Broker.TopicOffsetPath, cfg.Broker.Url, cfg.Broker.TopicID, cfg.Server.LogLevel)
     app.Run(getAddr(cfg.Server.Port))
 }
