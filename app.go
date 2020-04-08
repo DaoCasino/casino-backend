@@ -6,13 +6,15 @@ import (
     broker "github.com/DaoCasino/platform-action-monitor-client"
     "github.com/eoscanada/eos-go"
     "github.com/gorilla/mux"
+    "github.com/rs/zerolog/log"
+    "github.com/zenazn/goji/graceful"
     "os"
     "os/signal"
     "strconv"
     "strings"
+    "sync"
     "syscall"
 
-    "github.com/rs/zerolog/log"
     "io/ioutil"
     "net/http"
 )
@@ -79,57 +81,63 @@ func (app *App) Initialize(wif string, blockChainUrl string, chainID string,
 
 func processEvent(event *broker.Event) {
     // TODO send signature to the blockchain
-    log.Error().Msgf("Unknown event %+v", event)
+    log.Info().Msgf("Unknown event %+v", event)
 }
 
-func RunEventListener(parentContext context.Context, brokerURL string, topicID broker.EventType, offsetPath string) {
+func RunEventListener(parentContext context.Context, brokerURL string, topicID broker.EventType, offsetPath string,
+    wg *sync.WaitGroup) {
 
-    events := make(chan *broker.EventMessage)
+    go func(parentContext context.Context) {
+        defer wg.Done()
 
-    listener := broker.NewEventListener(brokerURL, events)
-    if err := listener.ListenAndServe(parentContext); err != nil {
-        log.Panic().Msg(err.Error())
-    }
-    offset := readOffset(offsetPath)
-    log.Debug().Msgf("Subscribing to event type %+v with an offset of %+v", topicID, offset)
-    listener.Subscribe(topicID, offset)
+        events := make(chan *broker.EventMessage)
 
-    // start event listener goroutine
-    go func(ctx context.Context, events <-chan *broker.EventMessage) {
-        for {
-            select {
-            case <-ctx.Done():
-                log.Info().Msg("Terminating event listener")
-                listener.Unsubscribe(topicID)
-                return
-            case eventMessage, ok := <-events:
-                if !ok {
-                    log.Warn().Msg("Failed to read events")
-                    return
-                }
-                if len(eventMessage.Events) == 0 {
-                    log.Debug().Msg("Gotta event message with no events")
-                    return
-                }
-                log.Debug().Msgf("Processing %+v events", len(eventMessage.Events))
-                for _, event := range eventMessage.Events {
-                    processEvent(event)
-                }
-                offset = eventMessage.Events[len(eventMessage.Events) - 1].Offset
-                writeOffset(offsetPath, offset)
-            }
+        listener := broker.NewEventListener(brokerURL, events)
+        ctx, cancel := context.WithCancel(context.Background())
+        if err := listener.ListenAndServe(ctx); err != nil {
+            log.Panic().Msg(err.Error())
         }
-    }(parentContext, events)
+        offset := readOffset(offsetPath)
+        log.Debug().Msgf("Subscribing to event type %+v with an offset of %+v", topicID, offset)
+        listener.Subscribe(topicID, offset)
+
+        for {
+           select {
+           case <-parentContext.Done():
+               log.Info().Msg("Terminating event listener")
+               listener.Unsubscribe(topicID)
+               cancel()
+               return
+           case eventMessage, ok := <-events:
+               if !ok {
+                   log.Info().Msg("Failed to read events")
+                   break
+               }
+               if len(eventMessage.Events) == 0 {
+                   log.Debug().Msg("Gotta event message with no events")
+                   break
+               }
+               log.Debug().Msgf("Processing %+v events", len(eventMessage.Events))
+               for _, event := range eventMessage.Events {
+                   processEvent(event)
+               }
+               offset = eventMessage.Events[len(eventMessage.Events) - 1].Offset
+               writeOffset(offsetPath, offset)
+           }
+        }
+    }(parentContext)
 }
 
 func (app *App) Run(addr string) {
     parentContext, cancel := context.WithCancel(context.Background())
     log.Debug().Msg("starting http server")
     go func() {
-        log.Error().Msg(http.ListenAndServe(addr, app.Router).Error())
+        log.Error().Msg(graceful.ListenAndServe(addr, app.Router).Error())
     }()
     log.Debug().Msg("stating event listener")
-    RunEventListener(parentContext, app.Broker.Url, app.Broker.TopicID, app.Broker.TopicOffsetPath)
+    var wg sync.WaitGroup
+    wg.Add(1)
+    RunEventListener(parentContext, app.Broker.Url, app.Broker.TopicID, app.Broker.TopicOffsetPath, &wg)
 
     // Handle signals
     done := make(chan os.Signal, 1)
@@ -138,6 +146,7 @@ func (app *App) Run(addr string) {
     <-done
     log.Info().Msg("Terminating service")
     cancel()
+    wg.Wait()
 }
 
 func respondWithError(writer ResponseWriter, code int, message string) {
