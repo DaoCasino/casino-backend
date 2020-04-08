@@ -36,12 +36,15 @@ type App struct {
 }
 
 func readOffset(offsetPath string) uint64 {
-    log.Debug().Msg("reading from " + offsetPath)
+    log.Debug().Msg("reading offset from " + offsetPath)
     data, err := ioutil.ReadFile(offsetPath)
     if err != nil {
         log.Panic().Msg("couldn't read offset from file")
     }
-    result, _ := strconv.Atoi(strings.Trim(string(data), "\n"))
+    result, parseError := strconv.Atoi(strings.Trim(string(data), "\n"))
+    if parseError != nil {
+        log.Panic().Msgf("Failed to parse offset from %+v reason=%+v", offsetPath, parseError)
+    }
     return uint64(result)
 }
 
@@ -62,7 +65,7 @@ func (app *App) Initialize(wif string, blockChainUrl string, chainID string,
     app.BlockChain.API = eos.New(blockChainUrl)
     app.BlockChain.ChainID = chainID
 
-    log.Debug().Msg("Reading private key from file")
+    log.Debug().Msg("Reading private key from wif")
     if app.BlockChain.KeyBag.Add(wif) != nil {
         log.Panic().Msg("Malformed private key")
     }
@@ -102,6 +105,10 @@ func RunEventListener(parentContext context.Context, brokerURL string, topicID b
             case eventMessage, ok := <-events:
                 if !ok {
                     log.Warn().Msg("Failed to read events")
+                    return
+                }
+                if len(eventMessage.Events) == 0 {
+                    log.Debug().Msg("Gotta event message with no events")
                     return
                 }
                 log.Debug().Msgf("Processing %+v events", len(eventMessage.Events))
