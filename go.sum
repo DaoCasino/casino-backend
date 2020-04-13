@@ -20,6 +20,10 @@ github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200407103538-a9ef7c
 github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200407103538-a9ef7ce3b10d/go.mod h1:YxQzP8t+pdya1eeKRWf+5oLxhqtV2FXQTEqSH63vh0E=
 github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200407172818-3b77adacd838 h1:t7rr0VbZu839A/LunvGzzBQY8Q7zp376+FXrqeLzWGQ=
 github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200407172818-3b77adacd838/go.mod h1:YxQzP8t+pdya1eeKRWf+5oLxhqtV2FXQTEqSH63vh0E=
+github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200410000123-109f2178ed14 h1:0J3NbHihh8rvZrxb73jJtsOWgIkAtGDwNR8piYKVxrQ=
+github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200410000123-109f2178ed14/go.mod h1:YxQzP8t+pdya1eeKRWf+5oLxhqtV2FXQTEqSH63vh0E=
+github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200413122422-83c362e7417a h1:+QgL6LOmc+v85OKBGts/XkZNHFYLCDDWdEyDO0d6b3Y=
+github.com/DaoCasino/platform-action-monitor-client v0.0.0-20200413122422-83c362e7417a/go.mod h1:YxQzP8t+pdya1eeKRWf+5oLxhqtV2FXQTEqSH63vh0E=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/OneOfOne/xxhash v1.2.5/go.mod h1:eZbhyaAYD41SGSSsnmcpxVoRiQ/MPUTjUdIIOT9Um7Q=
 github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
