@@ -11,7 +11,7 @@ func NewSigndice(contract, casinoAccount string, requestID uint64, signature str
 		Account: eos.AN(contract),
 		Name:    eos.ActN("sgdicesecond"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(casinoAccount), Permission: eos.PN("active")},
+			{Actor: eos.AN(casinoAccount), Permission: eos.PN("signidice")},
 		},
 		ActionData: eos.NewActionData(Signidice{
 			requestID,
