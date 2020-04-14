@@ -1,13 +1,7 @@
 package main
 
 import (
-    "github.com/BurntSushi/toml"
     broker "github.com/DaoCasino/platform-action-monitor-client"
-    "github.com/kelseyhightower/envconfig"
-    "github.com/rs/zerolog/log"
-    "io/ioutil"
-    "strconv"
-    "strings"
 )
 
 
@@ -25,36 +19,11 @@ type Config struct {
         PrivateKeyPath string `envconfig:"PRIVATEKEY_PATH"`
         Url string
         ChainID string
+        CasinoAccountName string
     }
 }
 
-func readWIF(filename string) string {
-    content, err := ioutil.ReadFile(filename)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-    wif := strings.TrimSpace(strings.TrimSuffix(string(content), "\n"))
-    return wif
-}
 
-
-func readConfigFile(cfg *Config) {
-    _, err  := toml.DecodeFile("/etc/casino/config.toml", &cfg)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-}
-
-func readEnv(cfg *Config) {
-    err := envconfig.Process("", cfg)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-}
-
-func getAddr(port int) string {
-    return ":" + strconv.Itoa(port)
-}
 
 func main() {
     app := App{}
@@ -63,6 +32,7 @@ func main() {
     readEnv(&cfg)
     app.Initialize(
         readWIF(cfg.BlockChain.PrivateKeyPath), cfg.BlockChain.Url, cfg.BlockChain.ChainID,
-        cfg.Broker.TopicOffsetPath, cfg.Broker.Url, cfg.Broker.TopicID, cfg.Server.LogLevel)
+        cfg.Broker.TopicOffsetPath, cfg.Broker.Url, cfg.Broker.TopicID, cfg.BlockChain.CasinoAccountName,
+        cfg.Server.LogLevel)
     app.Run(getAddr(cfg.Server.Port))
 }

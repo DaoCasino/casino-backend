@@ -10,7 +10,6 @@ import (
     "github.com/zenazn/goji/graceful"
     "os"
     "os/signal"
-    "strconv"
     "strings"
     "sync"
     "syscall"
@@ -34,44 +33,29 @@ type App struct {
         API *eos.API
         KeyBag eos.KeyBag
         ChainID string
-    }
-}
-
-func readOffset(offsetPath string) uint64 {
-    log.Debug().Msg("reading offset from " + offsetPath)
-    data, err := ioutil.ReadFile(offsetPath)
-    if err != nil {
-        log.Panic().Msg("couldn't read offset from file")
-    }
-    result, parseError := strconv.Atoi(strings.Trim(string(data), "\n"))
-    if parseError != nil {
-        log.Panic().Msgf("Failed to parse offset from %+v reason=%+v", offsetPath, parseError)
-    }
-    return uint64(result)
-}
-
-func writeOffset(offsetPath string, offset uint64) {
-    log.Debug().Msg("writing offset to " + offsetPath)
-    err := ioutil.WriteFile(offsetPath, []byte(strconv.Itoa(int(offset))), 0644)
-    if err != nil {
-        log.Error().Msgf("couldnt save offeset %+v", err.Error())
+        CasinoAccountName string
     }
 }
 
 func (app *App) Initialize(wif string, blockChainUrl string, chainID string,
-    offsetPath string, brokerURL string, topicID broker.EventType, level string) {
+    offsetPath string, brokerURL string, topicID broker.EventType, casinoAccountName, level string) {
+
     InitLogger(level)
+    if strings.ToLower(level) == "debug" {
+        broker.EnableDebugLogging()
+    }
     log.Debug().Msg("initializing app")
 
     app.Router = mux.NewRouter()
     app.BlockChain.API = eos.New(blockChainUrl)
     app.BlockChain.ChainID = chainID
+    app.BlockChain.CasinoAccountName = casinoAccountName
 
     log.Debug().Msg("Reading private key from wif")
     if app.BlockChain.KeyBag.Add(wif) != nil {
         log.Panic().Msg("Malformed private key")
     }
-
+    app.BlockChain.API.SetSigner(&app.BlockChain.KeyBag)
     app.Broker.Url = brokerURL
     app.Broker.TopicOffsetPath = offsetPath
     app.Broker.TopicID = topicID
@@ -79,34 +63,65 @@ func (app *App) Initialize(wif string, blockChainUrl string, chainID string,
     app.InitializeRoutes()
 }
 
-func processEvent(event *broker.Event) {
-    // TODO send signature to the blockchain
-    log.Info().Msgf("Unknown event %+v", event)
+type BrokerData struct {
+    Digest string `json:"digest"`
 }
 
-func RunEventListener(parentContext context.Context, brokerURL string, topicID broker.EventType, offsetPath string,
-    wg *sync.WaitGroup) {
+func (app *App) processEvent(event *broker.Event) {
+    log.Info().Msgf("Processing event %+v", event)
+    var data BrokerData
+    parseError := json.Unmarshal(event.Data, &data)
+
+    if parseError != nil {
+       log.Warn().Msg("Couldnt get digest from event")
+       return
+    }
+
+    blockchain, api := app.BlockChain, app.BlockChain.API
+    signature, signError := blockchain.KeyBag.Keys[0].Sign([]byte(data.Digest))
+
+    if signError != nil {
+       log.Warn().Msg("Couldnt sign signidice_part_2, reason=" + signError.Error())
+       return
+    }
+
+    trx, packedTx := GetSigndiceTransaction(api, event.Sender, app.BlockChain.CasinoAccountName, event.RequestID, signature)
+    log.Debug().Msgf("%+v", trx)
+
+    result, sendError := api.PushTransaction(packedTx)
+    if sendError != nil {
+        log.Warn().Msg("Failed to send transaction, reason: " + sendError.Error())
+    }
+    log.Debug().Msg("Successfully signed and sent txn, id: " + result.TransactionID)
+}
+
+func (app *App) RunEventListener(parentContext context.Context, wg *sync.WaitGroup) {
 
     go func(parentContext context.Context) {
         defer wg.Done()
 
         events := make(chan *broker.EventMessage)
 
-        listener := broker.NewEventListener(brokerURL, events)
+        listener := broker.NewEventListener(app.Broker.Url, events)
         ctx, cancel := context.WithCancel(context.Background())
         if err := listener.ListenAndServe(ctx); err != nil {
             log.Panic().Msg(err.Error())
         }
+
+        offsetPath := app.Broker.TopicOffsetPath
         offset := readOffset(offsetPath)
+        topicID := app.Broker.TopicID
+
         log.Debug().Msgf("Subscribing to event type %+v with an offset of %+v", topicID, offset)
         listener.Subscribe(topicID, offset)
 
         for {
            select {
            case <-parentContext.Done():
-               log.Info().Msg("Terminating event listener")
+               log.Debug().Msg("Terminating event listener")
                listener.Unsubscribe(topicID)
                cancel()
+               log.Debug().Msg("Event listener successfully terminated")
                return
            case eventMessage, ok := <-events:
                if !ok {
@@ -119,7 +134,7 @@ func RunEventListener(parentContext context.Context, brokerURL string, topicID b
                }
                log.Debug().Msgf("Processing %+v events", len(eventMessage.Events))
                for _, event := range eventMessage.Events {
-                   processEvent(event)
+                   go app.processEvent(event)
                }
                offset = eventMessage.Events[len(eventMessage.Events) - 1].Offset
                writeOffset(offsetPath, offset)
@@ -137,7 +152,7 @@ func (app *App) Run(addr string) {
     log.Debug().Msg("stating event listener")
     var wg sync.WaitGroup
     wg.Add(1)
-    RunEventListener(parentContext, app.Broker.Url, app.Broker.TopicID, app.Broker.TopicOffsetPath, &wg)
+    app.RunEventListener(parentContext, &wg)
 
     // Handle signals
     done := make(chan os.Signal, 1)
@@ -147,6 +162,7 @@ func (app *App) Run(addr string) {
     log.Info().Msg("Terminating service")
     cancel()
     wg.Wait()
+    log.Info().Msg("Service successfully terminated")
 }
 
 func respondWithError(writer ResponseWriter, code int, message string) {
@@ -183,14 +199,14 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
         return
     }
     packedTrx, _ := signedTx.Pack(eos.CompressionNone)
-    _, sendError := app.BlockChain.API.PushTransaction(packedTrx)
+    result, sendError := app.BlockChain.API.PushTransaction(packedTrx)
     if sendError != nil {
         log.Debug().Msg(sendError.Error())
         respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain: " + sendError.Error())
         return
     }
 
-    respondWithJSON(writer, http.StatusOK, JsonResponse{"result":"ok"})
+    respondWithJSON(writer, http.StatusOK, JsonResponse{"txid": result.TransactionID})
 }
 
 func(app *App) SignTransaction(trx *eos.SignedTransaction) (*eos.SignedTransaction, error) {
