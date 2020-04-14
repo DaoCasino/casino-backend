@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/eoscanada/eos-go"
 	"github.com/eoscanada/eos-go/ecc"
 )
@@ -27,17 +26,17 @@ type Signidice struct {
 }
 
 
-func GetSigndiceTransaction(api *eos.API, contract, casinoAccount string, requestID uint64, signature ecc.Signature) (*eos.SignedTransaction, *eos.PackedTransaction) {
+func GetSigndiceTransaction(api *eos.API, contract, casinoAccount string, requestID uint64, signature ecc.Signature) (*eos.SignedTransaction, *eos.PackedTransaction, error) {
 	action := NewSigndice(contract, casinoAccount, requestID, string(signature.Content))
 	txOpts := &eos.TxOptions{}
 
 	if err := txOpts.FillFromChain(api); err != nil {
-		panic(fmt.Errorf("filling tx opts: %s", err))
+		return nil, nil, err
 	}
 	tx := eos.NewTransaction([]*eos.Action{action}, txOpts)
 	signedTx, packedTx, err := api.SignTransaction(tx, txOpts.ChainID, eos.CompressionNone)
 	if err != nil {
-		panic(fmt.Errorf("sign transaction: %s", err))
+		return nil, nil, err
 	}
-	return signedTx, packedTx
+	return signedTx, packedTx, nil
 }
