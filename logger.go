@@ -20,17 +20,11 @@ func InitLogger(level string) {
 			colorGreen
 			colorYellow
 			colorBlue
-			colorMagenta
-			colorCyan
-			colorWhite
-
-			colorBold     = 1
-			colorDarkGray = 90
 		)
-		var colorMap = map[string]int {
+		var colorMap = map[string]int{
 			"debug": colorYellow,
-			"info": colorGreen,
-			"warn": colorBlue,
+			"info":  colorGreen,
+			"warn":  colorBlue,
 			"error": colorRed,
 		}
 		colorize := func(s string, c int) string {

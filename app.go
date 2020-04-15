@@ -88,7 +88,7 @@ func (app *App) processEvent(event *broker.Event) {
     trx, packedTx, err := GetSigndiceTransaction(api, event.Sender, app.BlockChain.CasinoAccountName, event.RequestID, signature)
 
     if err != nil {
-        log.Error().Msg("couldn't form transaction, reason: " + err.Error())
+        log.Warn().Msg("couldn't form transaction, reason: " + err.Error())
         return
     }
 
@@ -105,29 +105,39 @@ func (app *App) RunEventListener(parentContext context.Context, wg *sync.WaitGro
 
     go func(parentContext context.Context) {
         defer wg.Done()
-
         events := make(chan *broker.EventMessage)
 
         listener := broker.NewEventListener(app.Broker.Url, events)
         ctx, cancel := context.WithCancel(context.Background())
+
         if err := listener.ListenAndServe(ctx); err != nil {
             log.Panic().Msg(err.Error())
         }
+
+        defer cancel()
 
         offsetPath := app.Broker.TopicOffsetPath
         offset := readOffset(offsetPath)
         topicID := app.Broker.TopicID
 
         log.Debug().Msgf("Subscribing to event type %+v with an offset of %+v", topicID, offset)
-        listener.Subscribe(topicID, offset)
+        _, err := listener.Subscribe(topicID, offset)
+
+        if err != nil {
+            log.Error().Msg("Failed to subscribe")
+            return
+        }
 
         for {
            select {
            case <-parentContext.Done():
                log.Debug().Msg("Terminating event listener")
-               listener.Unsubscribe(topicID)
-               cancel()
-               log.Debug().Msg("Event listener successfully terminated")
+               _, err := listener.Unsubscribe(topicID)
+               if err != nil {
+                   log.Warn().Msg("Failed to unsubscribe")
+               } else {
+                   log.Debug().Msg("Event listener successfully terminated")
+               }
                return
            case eventMessage, ok := <-events:
                if !ok {
@@ -142,7 +152,7 @@ func (app *App) RunEventListener(parentContext context.Context, wg *sync.WaitGro
                for _, event := range eventMessage.Events {
                    go app.processEvent(event)
                }
-               offset = eventMessage.Events[len(eventMessage.Events) - 1].Offset
+               offset = eventMessage.Events[len(eventMessage.Events) - 1].Offset + 1
                writeOffset(offsetPath, offset)
            }
         }
@@ -179,7 +189,10 @@ func respondWithJSON(writer ResponseWriter, code int, payload interface{}) {
     response, _ := json.Marshal(payload)
     writer.Header().Set("Content-Type", "application/json")
     writer.WriteHeader(code)
-    writer.Write(response)
+    _, err := writer.Write(response)
+    if err != nil {
+        log.Warn().Msg("Failed to respond to client")
+    }
 }
 
 func (app *App) PingQuery(writer ResponseWriter, req *Request) {
