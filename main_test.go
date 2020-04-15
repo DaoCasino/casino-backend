@@ -5,6 +5,7 @@ package main
 import (
     "bytes"
     "encoding/json"
+    broker "github.com/DaoCasino/platform-action-monitor-client"
     "github.com/eoscanada/eos-go"
     "github.com/rs/zerolog/log"
     "github.com/stretchr/testify/assert"
@@ -25,8 +26,8 @@ func TestMain(m *testing.M) {
     if err != nil {
         panic(err)
     }
-    a.Initialize(privateKey, "/var/log/offsets", "https://api.daobet.org",
-        chainID, "DEBUG")
+    a.Initialize(privateKey, "nodeURL",
+        chainID, "/some/path", "brokerUrl", broker.EventType(2), "a", "b")
     code := m.Run()
     os.Exit(code)
 }
