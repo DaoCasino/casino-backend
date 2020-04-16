@@ -5,6 +5,19 @@ language: go
 go:
   - 1.13.4
 
+services:
+  - docker
+
+env:
+  - IMG_NAME=daocasino/casinoback DOCKER_TAG_LATEST=true DOCKER_REGISTRY=registry.hub.docker.com
+
+before_install:
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+cache:
+  directories:
+    - $HOME/.ccache
+  timeout: 1000
 
 # Only clone the most recent commit.
 git:
@@ -27,7 +40,15 @@ before_script:
 jobs:
   include:
     - stage: lint & test
-      if: (branch IN (master,develop)) AND (type IN (push, pull_request))
       script:
         - golangci-lint run
         - go test -v -race ./...
+    - stage: build & push
+      script:
+       - docker build -t $IMG_NAME:$TRAVIS_BRANCH -f Dockerfile .
+       - |
+         docker push $IMG_NAME:$TRAVIS_BRANCH
+         if [ $TRAVIS_BRANCH == "master" ]; then
+           docker tag $IMG_NAME:master $IMG_NAME:latest
+           docker push $IMG_NAME:latest
+         fi

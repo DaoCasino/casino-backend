@@ -40,8 +40,8 @@ func readWIF(filename string) string {
 }
 
 
-func readConfigFile(cfg *Config) {
-	_, err  := toml.DecodeFile("/etc/casino/config.toml", &cfg)
+func readConfigFile(cfg *Config, path string) {
+	_, err  := toml.DecodeFile(path, &cfg)
 	if err != nil {
 		log.Panic().Msg(err.Error())
 	}

@@ -1,9 +1,9 @@
 package main
 
 import (
+    "flag"
     broker "github.com/DaoCasino/platform-action-monitor-client"
 )
-
 
 type Config struct {
     Server struct {
@@ -26,9 +26,11 @@ type Config struct {
 
 
 func main() {
+    configPath := flag.String("config", "/etc/config", "config file path")
+    flag.Parse()
     app := App{}
     cfg := Config{}
-    readConfigFile(&cfg)
+    readConfigFile(&cfg, *configPath)
     readEnv(&cfg)
     app.Initialize(
         readWIF(cfg.BlockChain.PrivateKeyPath), cfg.BlockChain.Url, cfg.BlockChain.ChainID,
