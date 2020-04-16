@@ -1,7 +1,6 @@
 package main
 
 import (
-    "flag"
     broker "github.com/DaoCasino/platform-action-monitor-client"
 )
 
@@ -23,14 +22,13 @@ type Config struct {
     }
 }
 
-
+const defaultConfigPath = "/etc/casino/config.toml"
+const configEnvVar = "CONFIG_PATH"
 
 func main() {
-    configPath := flag.String("config", "/etc/config", "config file path")
-    flag.Parse()
     app := App{}
     cfg := Config{}
-    readConfigFile(&cfg, *configPath)
+    readConfigFile(&cfg, getConfigPath(configEnvVar, defaultConfigPath))
     readEnv(&cfg)
     app.Initialize(
         readWIF(cfg.BlockChain.PrivateKeyPath), cfg.BlockChain.Url, cfg.BlockChain.ChainID,
