@@ -42,7 +42,7 @@ jobs:
     - stage: lint & test
       script:
         - golangci-lint run
-        - go test -v -race ./...
+        - go test -v -race -coverprofile=coverage.txt -covermode=atomic .
     - stage: build & push
       script:
        - docker build -t $IMG_NAME:$TRAVIS_BRANCH -f Dockerfile .
@@ -52,3 +52,6 @@ jobs:
            docker tag $IMG_NAME:master $IMG_NAME:latest
            docker push $IMG_NAME:latest
          fi
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash
