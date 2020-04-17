@@ -1,10 +1,12 @@
 package main
 
 import (
+	"flag"
 	"github.com/BurntSushi/toml"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/rs/zerolog/log"
 	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -40,8 +42,8 @@ func readWIF(filename string) string {
 }
 
 
-func readConfigFile(cfg *Config) {
-	_, err  := toml.DecodeFile("/etc/casino/config.toml", &cfg)
+func readConfigFile(cfg *Config, path string) {
+	_, err  := toml.DecodeFile(path, &cfg)
 	if err != nil {
 		log.Panic().Msg(err.Error())
 	}
@@ -52,6 +54,16 @@ func readEnv(cfg *Config) {
 	if err != nil {
 		log.Panic().Msg(err.Error())
 	}
+}
+
+func getConfigPath(envVar, defaultValue string) string {
+	configPath := flag.String("config", defaultValue, "config file path")
+	flag.Parse()
+	cfgPath, isSet := os.LookupEnv(envVar)
+	if isSet {
+		configPath = &cfgPath
+	}
+	return *configPath
 }
 
 func getAddr(port int) string {
