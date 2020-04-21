@@ -2,6 +2,7 @@ package main
 
 import (
     "context"
+    "encoding/hex"
     "encoding/json"
     broker "github.com/DaoCasino/platform-action-monitor-client"
     "github.com/eoscanada/eos-go"
@@ -231,7 +232,8 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 func(app *App) SignTransaction(trx *eos.SignedTransaction) (*eos.SignedTransaction, error) {
     blockchain := app.BlockChain
     publicKeys, _ := blockchain.KeyBag.AvailableKeys()
-    return blockchain.KeyBag.Sign(trx, []byte(blockchain.ChainID), publicKeys[0])
+    chainID, _ := hex.DecodeString(blockchain.ChainID)
+    return blockchain.KeyBag.Sign(trx, chainID, publicKeys[0])
 }
 
 func (app *App) InitializeRoutes() {
