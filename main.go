@@ -16,6 +16,7 @@ type Config struct {
     }
     BlockChain struct {
         PrivateKeyPath string `envconfig:"PRIVATEKEY_PATH"`
+        SignidiceKeyPath string `envconfig:"SIGNIDICEKEY_PATH"`
         Url string
         ChainID string
         CasinoAccountName string
@@ -33,6 +34,6 @@ func main() {
     app.Initialize(
         readWIF(cfg.BlockChain.PrivateKeyPath), cfg.BlockChain.Url, cfg.BlockChain.ChainID,
         cfg.Broker.TopicOffsetPath, cfg.Broker.Url, cfg.Broker.TopicID, cfg.BlockChain.CasinoAccountName,
-        cfg.Server.LogLevel)
+        cfg.Server.LogLevel, readRsa(cfg.BlockChain.SignidiceKeyPath))
     app.Run(getAddr(cfg.Server.Port))
 }

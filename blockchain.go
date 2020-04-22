@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/eoscanada/eos-go"
-	"github.com/eoscanada/eos-go/ecc"
 )
 
 func NewSigndice(contract, casinoAccount string, requestID uint64, signature string) *eos.Action {
@@ -26,8 +25,8 @@ type Signidice struct {
 }
 
 
-func GetSigndiceTransaction(api *eos.API, contract, casinoAccount string, requestID uint64, signature ecc.Signature) (*eos.SignedTransaction, *eos.PackedTransaction, error) {
-	action := NewSigndice(contract, casinoAccount, requestID, string(signature.Content))
+func GetSigndiceTransaction(api *eos.API, contract, casinoAccount string,requestID uint64, signature string) (*eos.SignedTransaction, *eos.PackedTransaction, error) {
+	action := NewSigndice(contract, casinoAccount, requestID, signature)
 	txOpts := &eos.TxOptions{}
 
 	if err := txOpts.FillFromChain(api); err != nil {
@@ -40,3 +39,4 @@ func GetSigndiceTransaction(api *eos.API, contract, casinoAccount string, reques
 	}
 	return signedTx, packedTx, nil
 }
+

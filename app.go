@@ -2,6 +2,8 @@ package main
 
 import (
     "context"
+    "crypto/rsa"
+    "encoding/hex"
     "encoding/json"
     broker "github.com/DaoCasino/platform-action-monitor-client"
     "github.com/eoscanada/eos-go"
@@ -34,12 +36,14 @@ type App struct {
         KeyBag eos.KeyBag
         ChainID string
         CasinoAccountName string
+        SignidiceKey *rsa.PrivateKey
     }
 }
 
 func (app *App) Initialize(wif string, blockChainUrl string, chainID string,
-    offsetPath string, brokerURL string, topicID broker.EventType, casinoAccountName, level string) {
-
+    offsetPath string, brokerURL string, topicID broker.EventType,
+    casinoAccountName, level string, signidiceKey *rsa.PrivateKey,
+) {
     InitLogger(level)
     if strings.ToLower(level) == "debug" {
         broker.EnableDebugLogging()
@@ -50,6 +54,7 @@ func (app *App) Initialize(wif string, blockChainUrl string, chainID string,
     app.BlockChain.API = eos.New(blockChainUrl)
     app.BlockChain.ChainID = chainID
     app.BlockChain.CasinoAccountName = casinoAccountName
+    app.BlockChain.SignidiceKey = signidiceKey
 
     log.Debug().Msg("Reading private key from wif")
     if app.BlockChain.KeyBag.Add(wif) != nil {
@@ -64,7 +69,7 @@ func (app *App) Initialize(wif string, blockChainUrl string, chainID string,
 }
 
 type BrokerData struct {
-    Digest string `json:"digest"`
+    Digest eos.Checksum256 `json:"digest"`
 }
 
 func (app *App) processEvent(event *broker.Event) {
@@ -77,8 +82,8 @@ func (app *App) processEvent(event *broker.Event) {
        return
     }
 
-    blockchain, api := app.BlockChain, app.BlockChain.API
-    signature, signError := blockchain.KeyBag.Keys[0].Sign([]byte(data.Digest))
+    api := app.BlockChain.API
+    signature, signError := rsaSign(data.Digest, app.BlockChain.SignidiceKey)
 
     if signError != nil {
        log.Warn().Msg("Couldnt sign signidice_part_2, reason=" + signError.Error())
@@ -97,6 +102,7 @@ func (app *App) processEvent(event *broker.Event) {
     result, sendError := api.PushTransaction(packedTx)
     if sendError != nil {
         log.Warn().Msg("Failed to send transaction, reason: " + sendError.Error())
+        return
     }
     log.Debug().Msg("Successfully signed and sent txn, id: " + result.TransactionID)
 }
@@ -231,7 +237,8 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 func(app *App) SignTransaction(trx *eos.SignedTransaction) (*eos.SignedTransaction, error) {
     blockchain := app.BlockChain
     publicKeys, _ := blockchain.KeyBag.AvailableKeys()
-    return blockchain.KeyBag.Sign(trx, []byte(blockchain.ChainID), publicKeys[0])
+    chainID, _ := hex.DecodeString(blockchain.ChainID)
+    return blockchain.KeyBag.Sign(trx, chainID, publicKeys[0])
 }
 
 func (app *App) InitializeRoutes() {
