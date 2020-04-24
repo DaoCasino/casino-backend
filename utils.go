@@ -81,11 +81,11 @@ func getAddr(port int) string {
 }
 
 func rsaSign(digest eos.Checksum256, key *rsa.PrivateKey) (string, error) {
-	sign, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest)
-	if err != nil {
-		return "", err
-	}
+    sign, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest)
+    if err != nil {
+        return "", err
+    }
 
-	// contract requires base64 string
-	return base64.StdEncoding.EncodeToString(sign), nil
+    // contract requires base64 string
+    return base64.StdEncoding.EncodeToString(sign), nil
 }
