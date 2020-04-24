@@ -97,7 +97,7 @@ func (app *App) processEvent(event *broker.Event) {
     log.Debug().Msg("Successfully signed and sent txn, id: " + result.TransactionID)
 }
 
-func (app *App) RunEventProcessor(ctx context.Context, offset uint64, wg *sync.WaitGroup) {
+func (app *App) RunEventProcessor(ctx context.Context, wg *sync.WaitGroup) {
     defer wg.Done()
 
     for {
@@ -117,7 +117,7 @@ func (app *App) RunEventProcessor(ctx context.Context, offset uint64, wg *sync.W
             for _, event := range eventMessage.Events {
                 go app.processEvent(event)
             }
-            offset = eventMessage.Events[len(eventMessage.Events) - 1].Offset + 1
+            offset := eventMessage.Events[len(eventMessage.Events) - 1].Offset + 1
             if err := writeOffset(app.OffsetHandler, offset); err != nil {
                 log.Error().Msgf("Failed to write offset, reason: %s", err.Error())
             }
@@ -155,7 +155,7 @@ func (app *App) Run(addr string) error {
 
     go func() {
         log.Debug().Msgf("starting event processor with offset %v", offset)
-        app.RunEventProcessor(ctx, offset, &wg)
+        app.RunEventProcessor(ctx, &wg)
     }()
 
     // Handle signals
