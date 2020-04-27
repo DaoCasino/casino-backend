@@ -218,10 +218,6 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	respondWithJSON(writer, http.StatusOK, JSONResponse{"txid": result.TransactionID})
 }
 
-func (app *App) SignTransaction(trx *eos.Transaction) {
-
-}
-
 func (app *App) GetRouter() *mux.Router {
 	var router mux.Router
 	router.HandleFunc("/ping", app.PingQuery).Methods("GET")
