@@ -1,17 +1,8 @@
 package main
 
 import (
-    "io/ioutil"
-    "strconv"
-    "strings"
-
-    "github.com/BurntSushi/toml"
-    "github.com/eoscanada/eos-go/ecc"
-    "github.com/kelseyhightower/envconfig"
-
-    "github.com/rs/zerolog/log"
+    broker "github.com/DaoCasino/platform-action-monitor-client"
 )
-
 
 type Config struct {
     Server struct {
@@ -19,50 +10,30 @@ type Config struct {
         LogLevel string `envconfig:"LOG_LEVEL"`
     }
     Broker struct {
-        TopicOffsetPath string `envconfig:"OFFSET_PATH""`
+        TopicOffsetPath string `envconfig:"OFFSET_PATH"`
+        Url string `envconfig:"BROKER_URL"`
+        TopicID broker.EventType
     }
     BlockChain struct {
         PrivateKeyPath string `envconfig:"PRIVATEKEY_PATH"`
+        SignidiceKeyPath string `envconfig:"SIGNIDICEKEY_PATH"`
+        Url string
+        ChainID string
+        CasinoAccountName string
     }
 }
 
-func readWIF(filename string) *ecc.PrivateKey {
-    content, err := ioutil.ReadFile(filename)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-    wif := strings.TrimSpace(strings.TrimSuffix(string(content), "\n"))
-    pk, err := ecc.NewPrivateKey(wif)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-    return pk
-}
-
-
-func readConfigFile(cfg *Config) {
-    _, err  := toml.DecodeFile("/etc/casino/config.toml", &cfg)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-}
-
-func readEnv(cfg *Config) {
-    err := envconfig.Process("", cfg)
-    if err != nil {
-        log.Panic().Msg(err.Error())
-    }
-}
-
-func getAddr(port int) string {
-    return ":" + strconv.Itoa(port)
-}
+const defaultConfigPath = "/etc/casino/config.toml"
+const configEnvVar = "CONFIG_PATH"
 
 func main() {
     app := App{}
     cfg := Config{}
-    readConfigFile(&cfg)
+    readConfigFile(&cfg, getConfigPath(configEnvVar, defaultConfigPath))
     readEnv(&cfg)
-    app.Initialize(readWIF(cfg.BlockChain.PrivateKeyPath), cfg.Broker.TopicOffsetPath, cfg.Server.LogLevel)
+    app.Initialize(
+        readWIF(cfg.BlockChain.PrivateKeyPath), cfg.BlockChain.Url, cfg.BlockChain.ChainID,
+        cfg.Broker.TopicOffsetPath, cfg.Broker.Url, cfg.Broker.TopicID, cfg.BlockChain.CasinoAccountName,
+        cfg.Server.LogLevel, readRsa(cfg.BlockChain.SignidiceKeyPath))
     app.Run(getAddr(cfg.Server.Port))
 }
