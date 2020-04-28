@@ -69,7 +69,7 @@ func (app *App) processEvent(event *broker.Event) {
 	parseError := json.Unmarshal(event.Data, &data)
 
 	if parseError != nil {
-		log.Warn().Msgf("Couldnt get digest from event, reason: %s", parseError.Error())
+		log.Error().Msgf("Couldnt get digest from event, reason: %s", parseError.Error())
 		return
 	}
 
@@ -77,7 +77,7 @@ func (app *App) processEvent(event *broker.Event) {
 	signature, signError := rsaSign([]byte(data.Digest), app.BlockChain.RSAKey)
 
 	if signError != nil {
-		log.Warn().Msgf("Couldnt sign signidice_part_2, reason: %s", signError.Error())
+		log.Error().Msgf("Couldnt sign signidice_part_2, reason: %s", signError.Error())
 		return
 	}
 
@@ -85,7 +85,7 @@ func (app *App) processEvent(event *broker.Event) {
 		signature)
 
 	if err != nil {
-		log.Warn().Msgf("couldn't form transaction, reason: %s", err.Error())
+		log.Error().Msgf("couldn't form transaction, reason: %s", err.Error())
 		return
 	}
 
@@ -93,7 +93,7 @@ func (app *App) processEvent(event *broker.Event) {
 
 	result, sendError := api.PushTransaction(packedTx)
 	if sendError != nil {
-		log.Warn().Msg("Failed to send transaction, reason: " + sendError.Error())
+		log.Error().Msg("Failed to send transaction, reason: " + sendError.Error())
 		return
 	}
 	log.Debug().Msg("Successfully signed and sent txn, id: " + result.TransactionID)
@@ -108,7 +108,7 @@ func (app *App) RunEventProcessor(ctx context.Context, wg *sync.WaitGroup) {
 			return
 		case eventMessage, ok := <-app.EventMessages:
 			if !ok {
-				log.Warn().Msg("Failed to read events")
+				log.Debug().Msg("Failed to read events")
 				break
 			}
 			if len(eventMessage.Events) == 0 {
