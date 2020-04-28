@@ -103,5 +103,4 @@ func main() {
 	if err := app.Run(getAddr(cfg.Server.Port)); err != nil {
 		log.Panic().Msg(err.Error())
 	}
-
 }
