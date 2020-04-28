@@ -7,36 +7,29 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"flag"
+	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/eoscanada/eos-go"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/rs/zerolog/log"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 )
 
-func readOffset(offsetPath string) uint64 {
-	log.Debug().Msg("reading offset from " + offsetPath)
-	data, err := ioutil.ReadFile(offsetPath)
-	if err != nil {
-		log.Panic().Msg("couldn't read offset from file")
-	}
-	result, parseError := strconv.Atoi(strings.Trim(string(data), "\n"))
-	if parseError != nil {
-		log.Panic().Msgf("Failed to parse offset from %+v reason=%+v", offsetPath, parseError)
-	}
-	return uint64(result)
+func readOffset(r io.Reader) (uint64, error) {
+	log.Debug().Msg("reading offset")
+	var offset uint64
+	_, err := fmt.Fscan(r, &offset)
+	return offset, err
 }
 
-func writeOffset(offsetPath string, offset uint64) {
-	log.Debug().Msg("writing offset to " + offsetPath)
-	err := ioutil.WriteFile(offsetPath, []byte(strconv.Itoa(int(offset))), 0644)
-	if err != nil {
-		log.Error().Msgf("couldnt save offeset %+v", err.Error())
-	}
+func writeOffset(w io.Writer, offset uint64) error {
+	log.Debug().Msgf("writing offset, value: %v", offset)
+	_, err := fmt.Fprint(w, offset)
+	return err
 }
 
 func readWIF(filename string) string {
@@ -48,22 +41,21 @@ func readWIF(filename string) string {
 	return wif
 }
 
-func readRsa(filename string) *rsa.PrivateKey {
+func readRsa(filename string) (*rsa.PrivateKey, error) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Panic().Msg(err.Error())
+		return nil, err
 	}
 	block, _ := pem.Decode(data)
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		log.Panic().Msg(err.Error())
+		return nil, err
 	}
-	return key
+	return key, err
 }
 
-
 func readConfigFile(cfg *Config, path string) {
-	_, err  := toml.DecodeFile(path, &cfg)
+	_, err := toml.DecodeFile(path, cfg)
 	if err != nil {
 		log.Panic().Msg(err.Error())
 	}
@@ -77,13 +69,11 @@ func readEnv(cfg *Config) {
 }
 
 func getConfigPath(envVar, defaultValue string) string {
-	configPath := flag.String("config", defaultValue, "config file path")
-	flag.Parse()
 	cfgPath, isSet := os.LookupEnv(envVar)
 	if isSet {
-		configPath = &cfgPath
+		return cfgPath
 	}
-	return *configPath
+	return defaultValue
 }
 
 func getAddr(port int) string {
@@ -96,6 +86,6 @@ func rsaSign(digest eos.Checksum256, key *rsa.PrivateKey) (string, error) {
 		return "", err
 	}
 
-	// contract require base64 string
+	// contract requires base64 string
 	return base64.StdEncoding.EncodeToString(sign), nil
 }
