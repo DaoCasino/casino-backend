@@ -81,15 +81,13 @@ func (app *App) processEvent(event *broker.Event) {
 		return
 	}
 
-	trx, packedTx, err := GetSigndiceTransaction(api, event.Sender, app.BlockChain.CasinoAccountName, event.RequestID,
-		signature)
+	packedTx, err := GetSigndiceTransaction(api, event.Sender, app.BlockChain.CasinoAccountName,
+		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice)
 
 	if err != nil {
 		log.Error().Msgf("couldn't form transaction, reason: %s", err.Error())
 		return
 	}
-
-	log.Debug().Msgf("%+v", trx)
 
 	result, sendError := api.PushTransaction(packedTx)
 	if sendError != nil {
