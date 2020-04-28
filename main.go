@@ -43,7 +43,6 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 	}
 
 	appCfg.BlockChain.EosPubKeys = PubKeys{pubKeys[0], pubKeys[1]}
-
 	if appCfg.BlockChain.ChainID, err = hex.DecodeString(cfg.BlockChain.ChainID); err != nil {
 		return nil, nil, err
 	}
@@ -53,7 +52,7 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 		return nil, nil, err
 	}
 
-	return appCfg, nil, nil
+	return appCfg, keyBag, nil
 }
 
 func MakeApp(cfg *Config) (*App, *os.File, error) {

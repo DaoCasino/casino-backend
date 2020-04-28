@@ -191,16 +191,15 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	tx := &eos.SignedTransaction{}
 	err := json.Unmarshal(rawTransaction, tx)
 	if err != nil {
-		log.Debug().Msg(err.Error())
+		log.Debug().Msgf("failed to deserialize transaction, reason: %s", err.Error())
 		respondWithError(writer, http.StatusBadRequest, "failed to deserialize transaction")
 		return
 	}
-
-	// TODO get deposit key from config
-	signedTx, signError := app.bcAPI.Signer.Sign(tx, app.BlockChain.ChainID)
+	log.Debug().Msg(app.BlockChain.EosPubKeys.Deposit.String())
+	signedTx, signError := app.bcAPI.Signer.Sign(tx, app.BlockChain.ChainID, app.BlockChain.EosPubKeys.Deposit)
 
 	if signError != nil {
-		log.Warn().Msg(signError.Error())
+		log.Warn().Msgf("failed to sign transaction, reason: %s", signError.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to sign transaction")
 		return
 	}
@@ -208,8 +207,9 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	packedTrx, _ := signedTx.Pack(eos.CompressionNone)
 	result, sendError := app.bcAPI.PushTransaction(packedTrx)
 	if sendError != nil {
-		log.Debug().Msg(sendError.Error())
-		respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain: "+sendError.Error())
+		log.Debug().Msgf("failed to send transaction to the blockchcain, reason: %s", sendError.Error())
+		respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain, reason: "+
+			sendError.Error())
 		return
 	}
 
