@@ -79,15 +79,20 @@ func (app *App) processEvent(event *broker.Event) *string {
 	}
 
 	api := app.bcAPI
-	signature, signError := rsaSign([]byte(data.Digest), app.BlockChain.RSAKey)
+	signature, signError := rsaSign(data.Digest, app.BlockChain.RSAKey)
 
 	if signError != nil {
 		log.Error().Msgf("Couldnt sign signidice_part_2, reason: %s", signError.Error())
 		return nil
 	}
 
+	txOpts := &eos.TxOptions{}
+	if err := txOpts.FillFromChain(api); err != nil {
+		log.Error().Msgf("failed to get blockchain state, reason: %s", err.Error())
+		return nil
+	}
 	packedTx, err := GetSigndiceTransaction(api, event.Sender, app.BlockChain.CasinoAccountName,
-		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice)
+		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice, txOpts)
 
 	if err != nil {
 		log.Error().Msgf("couldn't form transaction, reason: %s", err.Error())

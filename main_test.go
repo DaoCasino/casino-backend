@@ -4,48 +4,28 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
+	"github.com/DaoCasino/casino-backend/mocks"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
 	"github.com/eoscanada/eos-go"
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 var a *App
 
 const (
+	bcURL         = "localhost:8888"
 	depositPk     = "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAbuatmU"
 	signiDicePk   = "5KXQYCyytPBsKoymLuDjmg1MdqeSUmFRiczGe67HdWdvuBggKyS"
 	chainID       = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
 	casinoAccName = "daocasinoxxx"
 )
-
-type EventListenerMock struct{}
-
-func (e *EventListenerMock) ListenAndServe(ctx context.Context) error {
-	return nil
-}
-
-func (e *EventListenerMock) Subscribe(eventType broker.EventType, offset uint64) (bool, error) {
-	return true, nil
-}
-
-func (e *EventListenerMock) Unsubscribe(eventType broker.EventType) (bool, error) {
-	return true, nil
-}
 
 type SafeBuffer struct {
 	b bytes.Buffer
@@ -100,10 +80,10 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 func TestMain(m *testing.M) {
 	InitLogger("debug")
 	events := make(chan *broker.EventMessage)
-	listener := new(EventListenerMock)
+	listener := new(mocks.EventListenerMock)
 	f := &SafeBuffer{}
 	appCfg, keyBag := MakeTestConfig()
-	bc := eos.New("https://api.daobet.org")
+	bc := eos.New(bcURL)
 	bc.SetSigner(keyBag)
 	a = NewApp(bc, listener, events, f, appCfg)
 	code := m.Run()
@@ -160,95 +140,30 @@ func TestSignTransactionBadRequest(t *testing.T) {
 	assert.Equal(response.Body.String(), `{"error":"failed to deserialize transaction"}`)
 }
 
-func TestSignidice(t *testing.T) {
+func TestSignidiceAction(t *testing.T) {
 	assert := assert.New(t)
-	sha256String := sha256.Sum256([]byte("A"))
-	strToSign := hex.EncodeToString(sha256String[:])
-	data := json.RawMessage(fmt.Sprintf(`{"digest": "%v"}`, strToSign))
-	events := []*broker.Event{
-		{
-			Offset:    0,
-			Sender:    "daoplayeryyy",
-			CasinoID:  42,
-			GameID:    42,
-			RequestID: 42,
-			EventType: 42,
-			Data:      data,
-		},
-	}
-
-	txID := a.processEvent(events[0])
-	assert.NotNil(txID)
-	tx, err := a.bcAPI.GetTransaction(*txID)
-	assert.Nil(err)
-	actions := tx.Transaction.Transaction.Actions
-	assert.Equal(1, len(actions))
-	assert.Equal("sgdicesecond", string(actions[0].Name))
-	assert.Equal("daoplayeryyy", string(actions[0].Account))
+	action := NewSigndice("gamesc", "onecasino", 42, "casinosig")
+	assert.Equal(eos.AN("gamesc"), action.Account)
+	assert.Equal(eos.ActionName("sgdicesecond"), action.Name)
 	assert.Equal([]eos.PermissionLevel{
-		{
-			Actor:      eos.AN(casinoAccName),
-			Permission: "signidice",
-		},
-	}, actions[0].Authorization)
+		{Actor: eos.AN("onecasino"), Permission: eos.PN("signidice")},
+	},
+		action.Authorization)
+	assert.Equal(eos.NewActionData(Signidice{RequestID: 42, Signature: "casinosig"}), action.ActionData)
 }
 
-func TestSignidiceMultipleGoroutines(t *testing.T) {
+func TestSignidiceTransaction(t *testing.T) {
 	assert := assert.New(t)
-	defer a.OffsetHandler.(*SafeBuffer).Reset()
-	sha256String := sha256.Sum256([]byte("A"))
-	strToSign := hex.EncodeToString(sha256String[:])
-	data := json.RawMessage(fmt.Sprintf(`{"digest": "%v"}`, strToSign))
-	events := []*broker.Event{
-		{
-			Offset:    0,
-			Sender:    "daoplayeryyy",
-			CasinoID:  1,
-			GameID:    1,
-			RequestID: 1,
-			EventType: 1,
-			Data:      data,
-		},
-		{
-			Offset:    1,
-			Sender:    "daoplayeryyy",
-			CasinoID:  2,
-			GameID:    2,
-			RequestID: 2,
-			EventType: 2,
-			Data:      data,
-		},
-	}
+	dicePubKey := a.BlockChain.EosPubKeys.SigniDice
+	txOpts := &eos.TxOptions{ChainID: eos.Checksum256(chainID)}
+	packedTx, err := GetSigndiceTransaction(a.bcAPI, "gamesc", "onecasino",
+		42, "casinosig", dicePubKey, txOpts)
+	assert.Nil(err)
+	signedTx, err := packedTx.Unpack()
+	assert.Nil(err)
 
-	logBuffer := &SafeBuffer{}
-	oldLogger := log.Logger
-	log.Logger = log.Logger.Output(logBuffer)
-	defer func() {
-		log.Logger = oldLogger
-	}()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go a.RunEventProcessor(ctx)
-
-	a.EventMessages <- &broker.EventMessage{Offset: 1, Events: events}
-	time.Sleep(2 * time.Second)
-
-	offsetHandler, err := a.OffsetHandler.(*SafeBuffer)
-	assert.True(err)
-	assert.Equal("2", offsetHandler.String())
-
-	txnsSent := 0
-
-	for _, logLine := range strings.Split(logBuffer.String(), "\n") {
-		txOkMessage := "Successfully signed and sent txn, id: "
-		if idx := strings.LastIndex(logLine, txOkMessage); idx != -1 {
-			txnsSent++
-			// get tx id from log message
-			txID := logLine[idx+len(txOkMessage) : idx+len(txOkMessage)+64]
-			_, err := a.bcAPI.GetTransaction(txID)
-			assert.Nil(err)
-		}
-	}
-	assert.Equal(2, txnsSent)
+	pubKeys, err := signedTx.SignedByKeys(eos.Checksum256(chainID))
+	assert.Nil(err)
+	assert.Equal(1, len(pubKeys))
+	assert.Equal(dicePubKey, pubKeys[0])
 }
