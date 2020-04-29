@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync"
 	"testing"
 )
 
@@ -26,35 +25,6 @@ const (
 	chainID       = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
 	casinoAccName = "daocasinoxxx"
 )
-
-type SafeBuffer struct {
-	b bytes.Buffer
-	m sync.Mutex
-}
-
-func (b *SafeBuffer) Read(p []byte) (n int, err error) {
-	b.m.Lock()
-	defer b.m.Unlock()
-	return b.b.Read(p)
-}
-
-func (b *SafeBuffer) Write(p []byte) (n int, err error) {
-	b.m.Lock()
-	defer b.m.Unlock()
-	return b.b.Write(p)
-}
-
-func (b *SafeBuffer) String() string {
-	b.m.Lock()
-	defer b.m.Unlock()
-	return b.b.String()
-}
-
-func (b *SafeBuffer) Reset() {
-	b.m.Lock()
-	defer b.m.Unlock()
-	b.b.Reset()
-}
 
 func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 	keyBag := eos.KeyBag{}
@@ -81,7 +51,7 @@ func TestMain(m *testing.M) {
 	InitLogger("debug")
 	events := make(chan *broker.EventMessage)
 	listener := new(mocks.EventListenerMock)
-	f := &SafeBuffer{}
+	f := &mocks.SafeBuffer{}
 	appCfg, keyBag := MakeTestConfig()
 	bc := eos.New(bcURL)
 	bc.SetSigner(keyBag)
