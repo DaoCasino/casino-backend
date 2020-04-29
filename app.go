@@ -10,14 +10,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 	"github.com/zenazn/goji/graceful"
+	"golang.org/x/sync/errgroup"
 	"io"
-	"os"
-	"os/signal"
-	"sync"
-	"syscall"
-
 	"io/ioutil"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 type ResponseWriter = http.ResponseWriter
@@ -48,20 +47,26 @@ type AppConfig struct {
 
 type App struct {
 	bcAPI         *eos.API
-	BrokerClient  *broker.EventListener
+	BrokerClient  EventListener
 	OffsetHandler io.Writer
-	EventMessages <-chan *broker.EventMessage
+	EventMessages chan *broker.EventMessage
 	*AppConfig
 }
 
-func NewApp(bcAPI *eos.API, brokerClient *broker.EventListener, eventMessages <-chan *broker.EventMessage,
+type EventListener interface {
+	ListenAndServe(ctx context.Context) error
+	Subscribe(eventType broker.EventType, offset uint64) (bool, error)
+	Unsubscribe(eventType broker.EventType) (bool, error)
+}
+
+func NewApp(bcAPI *eos.API, brokerClient EventListener, eventMessages chan *broker.EventMessage,
 	offsetHandler io.Writer,
 	cfg *AppConfig) *App {
 	return &App{bcAPI: bcAPI, BrokerClient: brokerClient, OffsetHandler: offsetHandler,
 		EventMessages: eventMessages, AppConfig: cfg}
 }
 
-func (app *App) processEvent(event *broker.Event) {
+func (app *App) processEvent(event *broker.Event) *string {
 	log.Debug().Msgf("Processing event %+v", event)
 	var data struct {
 		Digest eos.Checksum256 `json:"digest"`
@@ -70,36 +75,40 @@ func (app *App) processEvent(event *broker.Event) {
 
 	if parseError != nil {
 		log.Error().Msgf("Couldnt get digest from event, reason: %s", parseError.Error())
-		return
+		return nil
 	}
 
 	api := app.bcAPI
-	signature, signError := rsaSign([]byte(data.Digest), app.BlockChain.RSAKey)
+	signature, signError := rsaSign(data.Digest, app.BlockChain.RSAKey)
 
 	if signError != nil {
 		log.Error().Msgf("Couldnt sign signidice_part_2, reason: %s", signError.Error())
-		return
+		return nil
 	}
 
+	txOpts := &eos.TxOptions{}
+	if err := txOpts.FillFromChain(api); err != nil {
+		log.Error().Msgf("failed to get blockchain state, reason: %s", err.Error())
+		return nil
+	}
 	packedTx, err := GetSigndiceTransaction(api, event.Sender, app.BlockChain.CasinoAccountName,
-		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice)
+		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice, txOpts)
 
 	if err != nil {
 		log.Error().Msgf("couldn't form transaction, reason: %s", err.Error())
-		return
+		return nil
 	}
 
 	result, sendError := api.PushTransaction(packedTx)
 	if sendError != nil {
 		log.Error().Msg("Failed to send transaction, reason: " + sendError.Error())
-		return
+		return nil
 	}
 	log.Debug().Msg("Successfully signed and sent txn, id: " + result.TransactionID)
+	return &result.TransactionID
 }
 
-func (app *App) RunEventProcessor(ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func (app *App) RunEventProcessor(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -117,7 +126,7 @@ func (app *App) RunEventProcessor(ctx context.Context, wg *sync.WaitGroup) {
 			for _, event := range eventMessage.Events {
 				go app.processEvent(event)
 			}
-			offset := eventMessage.Events[len(eventMessage.Events)-1].Offset + 1
+			offset := eventMessage.Offset + 1
 			if err := writeOffset(app.OffsetHandler, offset); err != nil {
 				log.Error().Msgf("Failed to write offset, reason: %s", err.Error())
 			}
@@ -126,44 +135,44 @@ func (app *App) RunEventProcessor(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func (app *App) Run(addr string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	errGroup, ctx := errgroup.WithContext(ctx)
+	defer cancel()
+
+	// no errGroup because ctx close cannot be handled
 	go func() {
+		defer cancel()
 		log.Debug().Msg("starting http server")
 		log.Panic().Msg(graceful.ListenAndServe(addr, app.GetRouter()).Error())
 	}()
 
-	var wg sync.WaitGroup
-	ctx, cancel := context.WithCancel(context.Background())
-	defer func() {
-		log.Info().Msg("Terminating service")
-		cancel()
-		wg.Wait()
-		log.Info().Msg("Service successfully terminated")
-	}()
+	errGroup.Go(func() error {
+		defer cancel()
+		log.Debug().Msg("starting event listener")
+		if err := app.BrokerClient.ListenAndServe(ctx); err != nil {
+			return err
+		}
+		if _, err := app.BrokerClient.Subscribe(app.Broker.TopicID, app.Broker.TopicOffset); err != nil {
+			return err
+		}
+		log.Debug().Msgf("starting event processor with offset %v", app.Broker.TopicOffset)
+		app.RunEventProcessor(ctx)
+		return nil
+	})
 
-	log.Debug().Msg("starting event listener")
+	errGroup.Go(func() error {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-quit:
+			cancel()
+		}
+		return nil
+	})
 
-	if err := app.BrokerClient.ListenAndServe(ctx); err != nil {
-		return err
-	}
-
-	offset := app.Broker.TopicOffset
-	if _, err := app.BrokerClient.Subscribe(app.Broker.TopicID, offset); err != nil {
-		return err
-	}
-
-	wg.Add(1)
-
-	go func() {
-		log.Debug().Msgf("starting event processor with offset %v", offset)
-		app.RunEventProcessor(ctx, &wg)
-	}()
-
-	// Handle signals
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
-	log.Info().Msg("Service successfully started")
-	<-done
-	return nil
+	return errGroup.Wait()
 }
 
 func respondWithError(writer ResponseWriter, code int, message string) {

@@ -4,6 +4,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"github.com/DaoCasino/casino-backend/mocks"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
 	"github.com/eoscanada/eos-go"
 	"github.com/stretchr/testify/assert"
@@ -16,13 +19,14 @@ import (
 var a *App
 
 const (
+	bcURL         = "localhost:8888"
 	depositPk     = "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAbuatmU"
-	signiDicePk   = "5Jt3SSiedaGmkXGxxW1rc65vFjt2xm8RTEfWCnZoZGxanBg3SdY"
+	signiDicePk   = "5KXQYCyytPBsKoymLuDjmg1MdqeSUmFRiczGe67HdWdvuBggKyS"
 	chainID       = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
-	casinoAccName = "casino.one"
+	casinoAccName = "daocasinoxxx"
 )
 
-func MakeTestConfig() *AppConfig {
+func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 	keyBag := eos.KeyBag{}
 	if err := keyBag.Add(depositPk); err != nil {
 		panic(err)
@@ -31,23 +35,27 @@ func MakeTestConfig() *AppConfig {
 		panic(err)
 	}
 	pubKeys, _ := keyBag.AvailableKeys()
+	rsaKey, _ := rsa.GenerateKey(rand.Reader, 1024)
 	return &AppConfig{
 		Broker{0, 0},
 		BlockChain{
 			eos.Checksum256(chainID),
 			casinoAccName,
 			PubKeys{pubKeys[0], pubKeys[1]},
-			nil,
+			rsaKey,
 		},
-	}
+	}, &keyBag
 }
 
 func TestMain(m *testing.M) {
 	InitLogger("debug")
 	events := make(chan *broker.EventMessage)
-	listener := broker.NewEventListener(":8888", events)
-	f := &bytes.Buffer{}
-	a = NewApp(eos.New("https://api.daobet.org"), listener, events, f, MakeTestConfig())
+	listener := new(mocks.EventListenerMock)
+	f := &mocks.SafeBuffer{}
+	appCfg, keyBag := MakeTestConfig()
+	bc := eos.New(bcURL)
+	bc.SetSigner(keyBag)
+	a = NewApp(bc, listener, events, f, appCfg)
 	code := m.Run()
 	os.Exit(code)
 }
@@ -100,4 +108,32 @@ func TestSignTransactionBadRequest(t *testing.T) {
 	a.SignQuery(response, request)
 
 	assert.Equal(response.Body.String(), `{"error":"failed to deserialize transaction"}`)
+}
+
+func TestSignidiceAction(t *testing.T) {
+	assert := assert.New(t)
+	action := NewSigndice("gamesc", "onecasino", 42, "casinosig")
+	assert.Equal(eos.AN("gamesc"), action.Account)
+	assert.Equal(eos.ActionName("sgdicesecond"), action.Name)
+	assert.Equal([]eos.PermissionLevel{
+		{Actor: eos.AN("onecasino"), Permission: eos.PN("signidice")},
+	},
+		action.Authorization)
+	assert.Equal(eos.NewActionData(Signidice{RequestID: 42, Signature: "casinosig"}), action.ActionData)
+}
+
+func TestSignidiceTransaction(t *testing.T) {
+	assert := assert.New(t)
+	dicePubKey := a.BlockChain.EosPubKeys.SigniDice
+	txOpts := &eos.TxOptions{ChainID: eos.Checksum256(chainID)}
+	packedTx, err := GetSigndiceTransaction(a.bcAPI, "gamesc", "onecasino",
+		42, "casinosig", dicePubKey, txOpts)
+	assert.Nil(err)
+	signedTx, err := packedTx.Unpack()
+	assert.Nil(err)
+
+	pubKeys, err := signedTx.SignedByKeys(eos.Checksum256(chainID))
+	assert.Nil(err)
+	assert.Equal(1, len(pubKeys))
+	assert.Equal(dicePubKey, pubKeys[0])
 }

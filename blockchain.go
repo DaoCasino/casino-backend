@@ -31,13 +31,9 @@ func GetSigndiceTransaction(
 	contract, casinoAccount string,
 	requestID uint64, signature string,
 	signidiceKey ecc.PublicKey,
+	txOpts *eos.TxOptions,
 ) (*eos.PackedTransaction, error) {
 	action := NewSigndice(contract, casinoAccount, requestID, signature)
-	txOpts := &eos.TxOptions{}
-
-	if err := txOpts.FillFromChain(api); err != nil {
-		return nil, err
-	}
 	tx := eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{action}, txOpts))
 	signedTx, err := api.Signer.Sign(tx, txOpts.ChainID, signidiceKey)
 	if err != nil {
