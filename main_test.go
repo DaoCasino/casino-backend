@@ -19,6 +19,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -46,6 +47,35 @@ func (e *EventListenerMock) Unsubscribe(eventType broker.EventType) (bool, error
 	return true, nil
 }
 
+type SafeBuffer struct {
+	b bytes.Buffer
+	m sync.Mutex
+}
+
+func (b *SafeBuffer) Read(p []byte) (n int, err error) {
+	b.m.Lock()
+	defer b.m.Unlock()
+	return b.b.Read(p)
+}
+
+func (b *SafeBuffer) Write(p []byte) (n int, err error) {
+	b.m.Lock()
+	defer b.m.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *SafeBuffer) String() string {
+	b.m.Lock()
+	defer b.m.Unlock()
+	return b.b.String()
+}
+
+func (b *SafeBuffer) Reset() {
+	b.m.Lock()
+	defer b.m.Unlock()
+	b.b.Reset()
+}
+
 func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 	keyBag := eos.KeyBag{}
 	if err := keyBag.Add(depositPk); err != nil {
@@ -71,7 +101,7 @@ func TestMain(m *testing.M) {
 	InitLogger("debug")
 	events := make(chan *broker.EventMessage)
 	listener := new(EventListenerMock)
-	f := &bytes.Buffer{}
+	f := &SafeBuffer{}
 	appCfg, keyBag := MakeTestConfig()
 	bc := eos.New("https://api.daobet.org")
 	bc.SetSigner(keyBag)
@@ -137,13 +167,13 @@ func TestSignidice(t *testing.T) {
 	data := json.RawMessage(fmt.Sprintf(`{"digest": "%v"}`, strToSign))
 	events := []*broker.Event{
 		{
-			Offset: 0,
-			Sender: "daoplayeryyy",
-			CasinoID: 42,
-			GameID: 42,
+			Offset:    0,
+			Sender:    "daoplayeryyy",
+			CasinoID:  42,
+			GameID:    42,
 			RequestID: 42,
 			EventType: 42,
-			Data: data,
+			Data:      data,
 		},
 	}
 
@@ -165,31 +195,32 @@ func TestSignidice(t *testing.T) {
 
 func TestSignidiceMultipleGoroutines(t *testing.T) {
 	assert := assert.New(t)
+	defer a.OffsetHandler.(*SafeBuffer).Reset()
 	sha256String := sha256.Sum256([]byte("A"))
 	strToSign := hex.EncodeToString(sha256String[:])
 	data := json.RawMessage(fmt.Sprintf(`{"digest": "%v"}`, strToSign))
 	events := []*broker.Event{
 		{
-			Offset: 0,
-			Sender: "daoplayeryyy",
-			CasinoID: 1,
-			GameID: 1,
+			Offset:    0,
+			Sender:    "daoplayeryyy",
+			CasinoID:  1,
+			GameID:    1,
 			RequestID: 1,
 			EventType: 1,
-			Data: data,
+			Data:      data,
 		},
 		{
-			Offset: 1,
-			Sender: "daoplayeryyy",
-			CasinoID: 2,
-			GameID: 2,
+			Offset:    1,
+			Sender:    "daoplayeryyy",
+			CasinoID:  2,
+			GameID:    2,
 			RequestID: 2,
 			EventType: 2,
-			Data: data,
+			Data:      data,
 		},
 	}
 
-	logBuffer := &bytes.Buffer{}
+	logBuffer := &SafeBuffer{}
 	oldLogger := log.Logger
 	log.Logger = log.Logger.Output(logBuffer)
 	defer func() {
@@ -203,8 +234,9 @@ func TestSignidiceMultipleGoroutines(t *testing.T) {
 	a.EventMessages <- &broker.EventMessage{Offset: 1, Events: events}
 	time.Sleep(2 * time.Second)
 
-	offsetHandler, _ := a.OffsetHandler.(*bytes.Buffer)
-	assert.Equal(offsetHandler.String(), "2")
+	offsetHandler, err := a.OffsetHandler.(*SafeBuffer)
+	assert.True(err)
+	assert.Equal("2", offsetHandler.String())
 
 	txnsSent := 0
 
@@ -214,7 +246,6 @@ func TestSignidiceMultipleGoroutines(t *testing.T) {
 			txnsSent++
 			// get tx id from log message
 			txID := logLine[idx+len(txOkMessage) : idx+len(txOkMessage)+64]
-			fmt.Println(txID)
 			_, err := a.bcAPI.GetTransaction(txID)
 			assert.Nil(err)
 		}
