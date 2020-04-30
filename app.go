@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
+	"github.com/DaoCasino/casino-backend/utils"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
 	"github.com/eoscanada/eos-go"
 	"github.com/eoscanada/eos-go/ecc"
@@ -79,7 +80,7 @@ func (app *App) processEvent(event *broker.Event) *string {
 	}
 
 	api := app.bcAPI
-	signature, signError := rsaSign(data.Digest, app.BlockChain.RSAKey)
+	signature, signError := utils.RsaSign(data.Digest, app.BlockChain.RSAKey)
 
 	if signError != nil {
 		log.Error().Msgf("Couldnt sign signidice_part_2, reason: %s", signError.Error())
@@ -127,7 +128,7 @@ func (app *App) RunEventProcessor(ctx context.Context) {
 				go app.processEvent(event)
 			}
 			offset := eventMessage.Offset + 1
-			if err := writeOffset(app.OffsetHandler, offset); err != nil {
+			if err := utils.WriteOffset(app.OffsetHandler, offset); err != nil {
 				log.Error().Msgf("Failed to write offset, reason: %s", err.Error())
 			}
 		}

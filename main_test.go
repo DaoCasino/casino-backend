@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 )
 
 var a *App
@@ -136,4 +137,15 @@ func TestSignidiceTransaction(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(1, len(pubKeys))
 	assert.Equal(dicePubKey, pubKeys[0])
+}
+
+func TestWithTimeout(t *testing.T) {
+	assert := assert.New(t)
+	slowFunction := func() error {
+		time.Sleep(2 * time.Second)
+		return nil
+	}
+	err := WithTimeout(slowFunction, time.Second)
+	assert.NotNil(err)
+	assert.Equal("timeout reached", err.Error())
 }

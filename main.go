@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/hex"
 	"flag"
+	"github.com/BurntSushi/toml"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
+	"github.com/DaoCasino/casino-backend/utils"
 	"github.com/eoscanada/eos-go"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/rs/zerolog/log"
 	"os"
 	"strings"
@@ -18,7 +21,7 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 
 	if f, err := os.Open(cfg.Broker.TopicOffsetPath); err == nil {
 		defer f.Close()
-		if appCfg.Broker.TopicOffset, err = readOffset(f); err != nil {
+		if appCfg.Broker.TopicOffset, err = utils.ReadOffset(f); err != nil {
 			return nil, nil, err
 		}
 	} else {
@@ -28,11 +31,11 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 
 	keyBag := &eos.KeyBag{}
 
-	if err = keyBag.Add(readWIF(cfg.BlockChain.DepositKeyPath)); err != nil {
+	if err = keyBag.Add(utils.ReadWIF(cfg.BlockChain.DepositKeyPath)); err != nil {
 		return nil, nil, err
 	}
 
-	if err = keyBag.Add(readWIF(cfg.BlockChain.SigniDiceKeyPath)); err != nil {
+	if err = keyBag.Add(utils.ReadWIF(cfg.BlockChain.SigniDiceKeyPath)); err != nil {
 		return nil, nil, err
 	}
 
@@ -48,7 +51,7 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 	}
 	appCfg.BlockChain.CasinoAccountName = cfg.BlockChain.CasinoAccountName
 
-	if appCfg.BlockChain.RSAKey, err = readRsa(cfg.BlockChain.RSAKeyPath); err != nil {
+	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKeyPath); err != nil {
 		return nil, nil, err
 	}
 
@@ -75,18 +78,25 @@ func MakeApp(cfg *Config) (*App, *os.File, error) {
 	return app, f, nil
 }
 
-func GetConfig(configPath string) *Config {
+func GetConfig(configPath string) (*Config, error) {
 	cfg := &Config{}
-	readEnv(cfg)
-	readConfigFile(cfg, configPath)
-	return cfg
+	if err := envconfig.Process("", cfg); err != nil {
+		return nil, err
+	}
+	if _, err := toml.DecodeFile(configPath, cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 func main() {
-	configPath := flag.String("config", getConfigPath(configEnvVar, defaultConfigPath), "config file path")
+	configPath := flag.String("config", utils.GetConfigPath(configEnvVar, defaultConfigPath), "config file path")
 	flag.Parse()
 
-	cfg := GetConfig(*configPath)
+	cfg, err := GetConfig(*configPath)
+	if err != nil {
+		log.Panic().Msg(err.Error())
+	}
 	logLevel := cfg.Server.LogLevel
 	InitLogger(cfg.Server.LogLevel)
 
@@ -100,7 +110,7 @@ func main() {
 	}
 	defer f.Close()
 
-	if err := app.Run(getAddr(cfg.Server.Port)); err != nil {
+	if err := app.Run(utils.GetAddr(cfg.Server.Port)); err != nil {
 		log.Panic().Msg(err.Error())
 	}
 }
