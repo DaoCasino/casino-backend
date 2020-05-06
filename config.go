@@ -8,9 +8,11 @@ type Config struct {
 		LogLevel string `default:"INFO"`
 	}
 	Broker struct {
-		TopicOffsetPath string `envconfig:"OFFSET_PATH"`
-		URL             string `envconfig:"BROKER_URL"`
-		TopicID         broker.EventType
+		TopicOffsetPath      string `envconfig:"OFFSET_PATH"`
+		URL                  string `envconfig:"BROKER_URL"`
+		TopicID              broker.EventType
+		ReconnectionAttempts int `default:"3"`
+		ReconnectionDelay    int `default:"3"`
 	}
 	BlockChain struct {
 		DepositKeyPath    string
@@ -19,6 +21,11 @@ type Config struct {
 		URL               string `envconfig:"BLOCKCHAIN_URL"`
 		ChainID           string
 		CasinoAccountName string `envconfig:"CASINO_ACCOUNT_NAME"`
+	}
+	HTTP struct {
+		RetryAmount int `default:"3"`
+		RetryDelay  int `default:"1"`
+		Timeout     int `default:"3"`
 	}
 }
 

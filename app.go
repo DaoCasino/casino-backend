@@ -4,6 +4,14 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/DaoCasino/casino-backend/utils"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
 	"github.com/eoscanada/eos-go"
@@ -12,19 +20,13 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/zenazn/goji/graceful"
 	"golang.org/x/sync/errgroup"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 type ResponseWriter = http.ResponseWriter
 type Request = http.Request
 type JSONResponse = map[string]interface{}
 
-type Broker struct {
+type BrokerConfig struct {
 	TopicID     broker.EventType
 	TopicOffset uint64
 }
@@ -34,16 +36,23 @@ type PubKeys struct {
 	SigniDice ecc.PublicKey
 }
 
-type BlockChain struct {
+type BlockChainConfig struct {
 	ChainID           eos.Checksum256
 	CasinoAccountName string
 	EosPubKeys        PubKeys
 	RSAKey            *rsa.PrivateKey
 }
 
+type HTTPConfig struct {
+	RetryAmount int
+	RetryDelay  time.Duration
+	Timeout     time.Duration
+}
+
 type AppConfig struct {
-	Broker     Broker
-	BlockChain BlockChain
+	Broker     BrokerConfig
+	BlockChain BlockChainConfig
+	HTTP       HTTPConfig
 }
 
 type App struct {
@@ -58,6 +67,7 @@ type EventListener interface {
 	ListenAndServe(ctx context.Context) error
 	Subscribe(eventType broker.EventType, offset uint64) (bool, error)
 	Unsubscribe(eventType broker.EventType) (bool, error)
+	Run(ctx context.Context)
 }
 
 func NewApp(bcAPI *eos.API, brokerClient EventListener, eventMessages chan *broker.EventMessage,
@@ -88,7 +98,10 @@ func (app *App) processEvent(event *broker.Event) *string {
 	}
 
 	txOpts := &eos.TxOptions{}
-	if err := txOpts.FillFromChain(api); err != nil {
+	err := utils.RetryWithTimeout(func() error {
+		return txOpts.FillFromChain(api)
+	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
+	if err != nil {
 		log.Error().Msgf("failed to get blockchain state, reason: %s", err.Error())
 		return nil
 	}
@@ -150,9 +163,7 @@ func (app *App) Run(addr string) error {
 	errGroup.Go(func() error {
 		defer cancel()
 		log.Debug().Msg("starting event listener")
-		if err := app.BrokerClient.ListenAndServe(ctx); err != nil {
-			return err
-		}
+		go app.BrokerClient.Run(ctx)
 		if _, err := app.BrokerClient.Subscribe(app.Broker.TopicID, app.Broker.TopicOffset); err != nil {
 			return err
 		}
@@ -215,9 +226,14 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	}
 	log.Debug().Msg(signedTx.String())
 	packedTrx, _ := signedTx.Pack(eos.CompressionNone)
-	result, sendError := app.bcAPI.PushTransaction(packedTrx)
+	var result *eos.PushTransactionFullResp
+	sendError := utils.RetryWithTimeout(func() error {
+		var e error
+		result, e = app.bcAPI.PushTransaction(packedTrx)
+		return e
+	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
 	if sendError != nil {
-		log.Debug().Msgf("failed to send transaction to the blockchcain, reason: %s", sendError.Error())
+		log.Debug().Msgf("failed to send transaction to the blockchain, reason: %s", sendError.Error())
 		respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain, reason: "+
 			sendError.Error())
 		return
