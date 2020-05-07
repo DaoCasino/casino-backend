@@ -3,22 +3,28 @@ package main
 import (
 	"encoding/hex"
 	"flag"
-	broker "github.com/DaoCasino/platform-action-monitor-client"
-	"github.com/eoscanada/eos-go"
-	"github.com/rs/zerolog/log"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/BurntSushi/toml"
+	"github.com/DaoCasino/casino-backend/utils"
+	broker "github.com/DaoCasino/platform-action-monitor-client"
+	"github.com/eoscanada/eos-go"
+	"github.com/kelseyhightower/envconfig"
+	"github.com/rs/zerolog/log"
 )
 
 func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 	appCfg := new(AppConfig)
 	var err error
 
+	// set broker config
 	appCfg.Broker.TopicID = cfg.Broker.TopicID
 
 	if f, err := os.Open(cfg.Broker.TopicOffsetPath); err == nil {
 		defer f.Close()
-		if appCfg.Broker.TopicOffset, err = readOffset(f); err != nil {
+		if appCfg.Broker.TopicOffset, err = utils.ReadOffset(f); err != nil {
 			return nil, nil, err
 		}
 	} else {
@@ -26,32 +32,31 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 		appCfg.Broker.TopicOffset = 0
 	}
 
+	// set blockchain config
 	keyBag := &eos.KeyBag{}
-
-	if err = keyBag.Add(readWIF(cfg.BlockChain.DepositKeyPath)); err != nil {
+	if err = keyBag.Add(utils.ReadWIF(cfg.BlockChain.DepositKeyPath)); err != nil {
 		return nil, nil, err
 	}
-
-	if err = keyBag.Add(readWIF(cfg.BlockChain.SigniDiceKeyPath)); err != nil {
+	if err = keyBag.Add(utils.ReadWIF(cfg.BlockChain.SigniDiceKeyPath)); err != nil {
 		return nil, nil, err
 	}
-
 	pubKeys, err := keyBag.AvailableKeys()
-
 	if err != nil {
 		return nil, nil, err
 	}
-
 	appCfg.BlockChain.EosPubKeys = PubKeys{pubKeys[0], pubKeys[1]}
 	if appCfg.BlockChain.ChainID, err = hex.DecodeString(cfg.BlockChain.ChainID); err != nil {
 		return nil, nil, err
 	}
 	appCfg.BlockChain.CasinoAccountName = cfg.BlockChain.CasinoAccountName
-
-	if appCfg.BlockChain.RSAKey, err = readRsa(cfg.BlockChain.RSAKeyPath); err != nil {
+	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKeyPath); err != nil {
 		return nil, nil, err
 	}
 
+	// set HTTP config
+	appCfg.HTTP.RetryDelay = time.Duration(cfg.HTTP.RetryDelay) * time.Second
+	appCfg.HTTP.Timeout = time.Duration(cfg.HTTP.Timeout) * time.Second
+	appCfg.HTTP.RetryAmount = cfg.HTTP.RetryAmount
 	return appCfg, keyBag, nil
 }
 
@@ -71,22 +76,33 @@ func MakeApp(cfg *Config) (*App, *os.File, error) {
 	bc := eos.New(cfg.BlockChain.URL)
 	bc.SetSigner(keyBag)
 
-	app := NewApp(bc, broker.NewEventListener(cfg.Broker.URL, events), events, f, appConfig)
+	brokerClient := broker.NewEventListener(cfg.Broker.URL, events)
+	brokerClient.ReconnectionAttempts = cfg.Broker.ReconnectionAttempts
+	brokerClient.ReconnectionDelay = time.Duration(cfg.Broker.ReconnectionDelay) * time.Second
+	app := NewApp(bc, brokerClient, events, f, appConfig)
 	return app, f, nil
 }
 
-func GetConfig(configPath string) *Config {
+func GetConfig(configPath string) (*Config, error) {
 	cfg := &Config{}
-	readEnv(cfg)
-	readConfigFile(cfg, configPath)
-	return cfg
+	if err := envconfig.Process("", cfg); err != nil {
+		return nil, err
+	}
+	if _, err := toml.DecodeFile(configPath, cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 func main() {
-	configPath := flag.String("config", getConfigPath(configEnvVar, defaultConfigPath), "config file path")
+	configPath := flag.String("config", utils.GetConfigPath(configEnvVar, defaultConfigPath),
+		"config file path")
 	flag.Parse()
 
-	cfg := GetConfig(*configPath)
+	cfg, err := GetConfig(*configPath)
+	if err != nil {
+		log.Panic().Msg(err.Error())
+	}
 	logLevel := cfg.Server.LogLevel
 	InitLogger(cfg.Server.LogLevel)
 
@@ -100,7 +116,7 @@ func main() {
 	}
 	defer f.Close()
 
-	if err := app.Run(getAddr(cfg.Server.Port)); err != nil {
+	if err := app.Run(utils.GetAddr(cfg.Server.Port)); err != nil {
 		log.Panic().Msg(err.Error())
 	}
 }

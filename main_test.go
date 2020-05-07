@@ -6,14 +6,16 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
-	"github.com/DaoCasino/casino-backend/mocks"
-	broker "github.com/DaoCasino/platform-action-monitor-client"
-	"github.com/eoscanada/eos-go"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
+
+	"github.com/DaoCasino/casino-backend/mocks"
+	broker "github.com/DaoCasino/platform-action-monitor-client"
+	"github.com/eoscanada/eos-go"
+	"github.com/stretchr/testify/assert"
 )
 
 var a *App
@@ -37,13 +39,14 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 	pubKeys, _ := keyBag.AvailableKeys()
 	rsaKey, _ := rsa.GenerateKey(rand.Reader, 1024)
 	return &AppConfig{
-		Broker{0, 0},
-		BlockChain{
+		BrokerConfig{0, 0},
+		BlockChainConfig{
 			eos.Checksum256(chainID),
 			casinoAccName,
 			PubKeys{pubKeys[0], pubKeys[1]},
 			rsaKey,
 		},
+		HTTPConfig{3, 3 * time.Second, 3 * time.Second},
 	}, &keyBag
 }
 
