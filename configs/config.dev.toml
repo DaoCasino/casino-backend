@@ -1,0 +1,21 @@
+[server]
+port = 6565
+logLevel = "debug"
+
+[broker]
+topicOffsetPath = "offset.txt"
+url = "localhost:8888"
+topicID = 0
+
+[blockchain]
+depositkeypath = "deposit.txt"
+signidicekeypath = "dice.txt"
+rsakeypath = "private.pem"
+url = "https://api.daobet.org"
+casinoAccountName = "daocasinoxxx"
+chainID = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
+
+[http]
+retrydelay = 1
+retryamount = 3
+timeout = 3
