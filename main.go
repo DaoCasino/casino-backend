@@ -34,10 +34,10 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 
 	// set blockchain config
 	keyBag := &eos.KeyBag{}
-	if err = keyBag.Add(utils.ReadWIF(cfg.BlockChain.DepositKeyPath)); err != nil {
+	if err = keyBag.Add(cfg.BlockChain.DepositKey); err != nil {
 		return nil, nil, err
 	}
-	if err = keyBag.Add(utils.ReadWIF(cfg.BlockChain.SigniDiceKeyPath)); err != nil {
+	if err = keyBag.Add(cfg.BlockChain.SigniDiceKey); err != nil {
 		return nil, nil, err
 	}
 	pubKeys, err := keyBag.AvailableKeys()
@@ -49,7 +49,7 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 		return nil, nil, err
 	}
 	appCfg.BlockChain.CasinoAccountName = cfg.BlockChain.CasinoAccountName
-	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKeyPath); err != nil {
+	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKey); err != nil {
 		return nil, nil, err
 	}
 
@@ -89,7 +89,9 @@ func GetConfig(configPath string) (*Config, error) {
 		return nil, err
 	}
 	if _, err := toml.DecodeFile(configPath, cfg); err != nil {
-		return nil, err
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
 	}
 	return cfg, nil
 }
