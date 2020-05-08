@@ -21,9 +21,6 @@ func ReadOffset(r io.Reader) (uint64, error) {
     log.Debug().Msg("reading offset")
     var offset uint64
     _, err := fmt.Fscan(r, &offset)
-    if err == io.EOF { // if file empty just set 0
-        return 0, nil
-    }
     return offset, err
 }
 

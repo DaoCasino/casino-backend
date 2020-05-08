@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"flag"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -24,8 +25,13 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 
 	if f, err := os.Open(cfg.Broker.TopicOffsetPath); err == nil {
 		defer f.Close()
-		if appCfg.Broker.TopicOffset, err = utils.ReadOffset(f); err != nil {
-			return nil, nil, err
+		appCfg.Broker.TopicOffset, err = utils.ReadOffset(f)
+		if err != nil {
+			if err == io.EOF { // if file empty just set 0
+				appCfg.Broker.TopicOffset = 0
+			} else {
+				return nil, nil, err
+			}
 		}
 	} else {
 		// initial start
