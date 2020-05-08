@@ -4,23 +4,23 @@ import broker "github.com/DaoCasino/platform-action-monitor-client"
 
 type Config struct {
 	Server struct {
-		Port     int    `envconfig:"SERVER_PORT" default:"80"`
+		Port     int    `default:"80"`
 		LogLevel string `default:"INFO"`
 	}
 	Broker struct {
-		TopicOffsetPath      string `envconfig:"OFFSET_PATH"`
-		URL                  string `envconfig:"BROKER_URL"`
+		TopicOffsetPath      string
+		URL                  string
 		TopicID              broker.EventType
 		ReconnectionAttempts int `default:"3"`
 		ReconnectionDelay    int `default:"3"`
 	}
 	BlockChain struct {
-		DepositKeyPath    string
-		SigniDiceKeyPath  string
-		RSAKeyPath        string
-		URL               string `envconfig:"BLOCKCHAIN_URL"`
+		DepositKey        string
+		SigniDiceKey      string
+		RSAKey            string
+		URL               string
 		ChainID           string
-		CasinoAccountName string `envconfig:"CASINO_ACCOUNT_NAME"`
+		CasinoAccountName string
 	}
 	HTTP struct {
 		RetryAmount int `default:"3"`
@@ -30,6 +30,6 @@ type Config struct {
 }
 
 const (
-	defaultConfigPath = "/etc/casino/config.toml"
+	defaultConfigPath = "/etc/casino/config.dev"
 	configEnvVar      = "CONFIG_PATH"
 )

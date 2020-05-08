@@ -39,8 +39,8 @@ func ReadWIF(filename string) string {
     return wif
 }
 
-func ReadRsa(filename string) (*rsa.PrivateKey, error) {
-    data, err := ioutil.ReadFile(filename)
+func ReadRsa(base64Rsa string) (*rsa.PrivateKey, error) {
+    data, err := base64.StdEncoding.DecodeString(base64Rsa)
     if err != nil {
         return nil, err
     }

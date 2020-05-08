@@ -4,13 +4,13 @@ logLevel = "debug"
 
 [broker]
 topicOffsetPath = "offset.txt"
-url = "localhost:8888"
+url = "localhost:8889"
 topicID = 0
 
 [blockchain]
-depositkeypath = "deposit.txt"
-signidicekeypath = "dice.txt"
-rsakeypath = "private.pem"
+depositkey = "5JJvavvETHcGEx7ueoDry8zvcfPenbBCKcUQXXXXXX"
+signidicekey = "5JJvavvETHcGEx7ueoDry8zvcfPenbBCKcUQXXXXXX"
+rsakey = "base64 encoded pem key"
 url = "https://api.daobet.org"
 casinoAccountName = "daocasinoxxx"
 chainID = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
