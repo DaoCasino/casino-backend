@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eoscanada/eos-go/ecc"
+
 	"github.com/BurntSushi/toml"
 	"github.com/DaoCasino/casino-backend/utils"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
@@ -50,12 +52,17 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	appCfg.BlockChain.CasinoAccountName = eos.AN(cfg.BlockChain.CasinoAccountName)
 	appCfg.BlockChain.EosPubKeys = PubKeys{pubKeys[0], pubKeys[1]}
+	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKey); err != nil {
+		return nil, nil, err
+	}
 	if appCfg.BlockChain.ChainID, err = hex.DecodeString(cfg.BlockChain.ChainID); err != nil {
 		return nil, nil, err
 	}
-	appCfg.BlockChain.CasinoAccountName = cfg.BlockChain.CasinoAccountName
-	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKey); err != nil {
+
+	appCfg.BlockChain.PlatformAccountName = eos.AN(cfg.BlockChain.PlatformAccountName)
+	if appCfg.BlockChain.PlatformPubKey, err = ecc.NewPublicKey(cfg.BlockChain.PlatformPubKey); err != nil {
 		return nil, nil, err
 	}
 

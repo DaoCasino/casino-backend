@@ -6,11 +6,16 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eoscanada/eos-go/token"
+
+	"github.com/eoscanada/eos-go/ecc"
 
 	"github.com/DaoCasino/casino-backend/mocks"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
@@ -21,11 +26,13 @@ import (
 var a *App
 
 const (
-	bcURL         = "localhost:8888"
-	depositPk     = "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAbuatmU"
-	signiDicePk   = "5KXQYCyytPBsKoymLuDjmg1MdqeSUmFRiczGe67HdWdvuBggKyS"
-	chainID       = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
-	casinoAccName = "daocasinoxxx"
+	bcURL           = "localhost:8888"
+	depositPk       = "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAbuatmU"
+	signiDicePk     = "5KXQYCyytPBsKoymLuDjmg1MdqeSUmFRiczGe67HdWdvuBggKyS"
+	chainID         = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
+	casinoAccName   = "daocasinoxxx"
+	platformAccName = "platform"
+	platformPk      = "5KUc6M7hzDr63kDsn2iLn54X7JpzYyXtUEc5iuqieRkQp4iYYkv"
 )
 
 func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
@@ -38,6 +45,7 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 	}
 	pubKeys, _ := keyBag.AvailableKeys()
 	rsaKey, _ := rsa.GenerateKey(rand.Reader, 1024)
+	platformKey, _ := ecc.NewPrivateKey(platformPk)
 	return &AppConfig{
 		BrokerConfig{0, 0},
 		BlockChainConfig{
@@ -45,6 +53,8 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 			casinoAccName,
 			PubKeys{pubKeys[0], pubKeys[1]},
 			rsaKey,
+			platformAccName,
+			platformKey.PublicKey(),
 		},
 		HTTPConfig{3, 3 * time.Second, 3 * time.Second},
 	}, &keyBag
@@ -139,4 +149,57 @@ func TestSignidiceTransaction(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(1, len(pubKeys))
 	assert.Equal(dicePubKey, pubKeys[0])
+}
+
+func TestValidateTransaction(t *testing.T) {
+	assert := assert.New(t)
+	sponsorPk := "5J6wt29qMkX2d22x2dw7QQb2S7A9c9xjrSiA16t6TAwTNqntpi1"
+	keyBag := eos.KeyBag{}
+	err := keyBag.Add(sponsorPk)
+	assert.Nil(err)
+	err = keyBag.Add(platformPk)
+	assert.Nil(err)
+	err = keyBag.Add(signiDicePk)
+	assert.Nil(err)
+	pubKeys, _ := keyBag.AvailableKeys()
+	qty, _ := eos.NewAssetFromString("10.0000 BET")
+	transferData := token.Transfer{From: eos.AN("player"), To: eos.AN("dice"), Quantity: qty, Memo: ""}
+	transferAction := &eos.Action{
+		Account: eos.AN("eosio.token"),
+		Name:    eos.ActN("transfer"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: eos.AN("player"), Permission: eos.PN(casinoAccName)},
+		}, ActionData: eos.NewActionData(transferData),
+	}
+	newGameAction := &eos.Action{
+		Account: eos.AN("dice"),
+		Name:    eos.ActN("newgame"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: eos.AN(platformAccName), Permission: eos.PN("gameaction")},
+		},
+	}
+	assert.Nil(ValidateTransferAction(transferAction, eos.AN(casinoAccName)))
+	assert.Equal(ValidateTransferAction(transferAction, eos.AN("onebet")),
+		fmt.Errorf("invalid permission in transfer action"))
+	assert.Nil(ValidateNewGameAction(newGameAction, eos.AN(platformAccName), eos.AN("dice")))
+	assert.Equal(ValidateNewGameAction(newGameAction, eos.AN("buggyplatform"), eos.AN("dice")),
+		fmt.Errorf("invalid actor in newgame action"))
+	assert.Equal(ValidateNewGameAction(newGameAction, eos.AN(platformAccName), eos.AN("tictactoe")),
+		fmt.Errorf("invalid contract name in newgame action"))
+	txn := *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction}, nil))
+	origTxn := txn
+	signedTxn, err := keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
+	assert.Nil(err)
+	assert.Nil(ValidateDepositTransaction(signedTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)))
+
+	nonPlatformTxn, err := keyBag.Sign(&origTxn, eos.Checksum256(chainID), pubKeys[0], pubKeys[2])
+	assert.Nil(err)
+	assert.Equal(ValidateDepositTransaction(nonPlatformTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)),
+		fmt.Errorf("platform pub key not found in deposit txn"))
 }

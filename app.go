@@ -37,10 +37,12 @@ type PubKeys struct {
 }
 
 type BlockChainConfig struct {
-	ChainID           eos.Checksum256
-	CasinoAccountName string
-	EosPubKeys        PubKeys
-	RSAKey            *rsa.PrivateKey
+	ChainID             eos.Checksum256
+	CasinoAccountName   eos.AccountName
+	EosPubKeys          PubKeys
+	RSAKey              *rsa.PrivateKey
+	PlatformAccountName eos.AccountName
+	PlatformPubKey      ecc.PublicKey
 }
 
 type HTTPConfig struct {
@@ -105,7 +107,7 @@ func (app *App) processEvent(event *broker.Event) *string {
 		log.Error().Msgf("failed to get blockchain state, reason: %s", err.Error())
 		return nil
 	}
-	packedTx, err := GetSigndiceTransaction(api, event.Sender, app.BlockChain.CasinoAccountName,
+	packedTx, err := GetSigndiceTransaction(api, eos.AN(event.Sender), app.BlockChain.CasinoAccountName,
 		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice, txOpts)
 
 	if err != nil {
@@ -216,7 +218,13 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 		respondWithError(writer, http.StatusBadRequest, "failed to deserialize transaction")
 		return
 	}
-	log.Debug().Msg(app.BlockChain.EosPubKeys.Deposit.String())
+	if err := ValidateDepositTransaction(tx, app.BlockChain.CasinoAccountName, app.BlockChain.PlatformAccountName,
+		app.BlockChain.PlatformPubKey,
+		app.BlockChain.ChainID); err != nil {
+		log.Debug().Msgf("invalid transaction supplied, reason: %s", err.Error())
+		respondWithError(writer, http.StatusBadRequest, "invalid transaction supplied")
+		return
+	}
 	signedTx, signError := app.bcAPI.Signer.Sign(tx, app.BlockChain.ChainID, app.BlockChain.EosPubKeys.Deposit)
 
 	if signError != nil {

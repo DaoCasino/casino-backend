@@ -1,17 +1,21 @@
 package main
 
 import (
+	"fmt"
+
+	"github.com/eoscanada/eos-go/token"
+
 	"github.com/eoscanada/eos-go"
 	"github.com/eoscanada/eos-go/ecc"
 	"github.com/rs/zerolog/log"
 )
 
-func NewSigndice(contract, casinoAccount string, requestID uint64, signature string) *eos.Action {
+func NewSigndice(contract, casinoAccount eos.AccountName, requestID uint64, signature string) *eos.Action {
 	return &eos.Action{
-		Account: eos.AN(contract),
+		Account: contract,
 		Name:    eos.ActN("sgdicesecond"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(casinoAccount), Permission: eos.PN("signidice")},
+			{Actor: casinoAccount, Permission: eos.PN("signidice")},
 		},
 		ActionData: eos.NewActionData(Signidice{
 			requestID,
@@ -28,7 +32,7 @@ type Signidice struct {
 
 func GetSigndiceTransaction(
 	api *eos.API,
-	contract, casinoAccount string,
+	contract, casinoAccount eos.AccountName,
 	requestID uint64, signature string,
 	signidiceKey ecc.PublicKey,
 	txOpts *eos.TxOptions,
@@ -41,4 +45,83 @@ func GetSigndiceTransaction(
 	}
 	log.Debug().Msg(signedTx.String())
 	return tx.Pack(eos.CompressionNone)
+}
+
+func ValidateDepositTransaction(
+	tx *eos.SignedTransaction,
+	casinoName, platformName eos.AccountName,
+	platformPubKey ecc.PublicKey,
+	chainID eos.Checksum256) error {
+	if len(tx.Actions) != 2 {
+		return fmt.Errorf("invalid actions size")
+	}
+	transferAction := tx.Actions[0]
+	if err := ValidateTransferAction(transferAction, casinoName); err != nil {
+		return err
+	}
+
+	transferData, ok := transferAction.Data.(token.Transfer)
+	if !ok {
+		return fmt.Errorf("invalid transfer data")
+	}
+
+	if err := ValidateNewGameAction(tx.Actions[1], platformName, transferData.To); err != nil {
+		return err
+	}
+
+	pubKeys, err := tx.SignedByKeys(chainID)
+	log.Debug().Msgf("Deposit txn pubkeys: %v", pubKeys)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve public keys from deposit transaction")
+	}
+	if err := ValidateSignatures(pubKeys, platformPubKey); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName) error {
+	if action.Account != eos.AN("eosio.token") {
+		return fmt.Errorf("invalid contract name in transfer action")
+	}
+	if action.Name != eos.ActN("transfer") {
+		return fmt.Errorf("invalid action name in transfer action")
+	}
+	if len(action.Authorization) != 1 {
+		return fmt.Errorf("invalid authorization size in transfer action")
+	}
+	if string(action.Authorization[0].Permission) != string(casinoName) {
+		return fmt.Errorf("invalid permission in transfer action")
+	}
+	return nil
+}
+
+func ValidateNewGameAction(action *eos.Action, platformName, gameName eos.AccountName) error {
+	if action.Account != gameName {
+		return fmt.Errorf("invalid contract name in newgame action")
+	}
+	if action.Name != eos.ActN("newgame") {
+		return fmt.Errorf("invalid action name in newgame action")
+	}
+	if len(action.Authorization) != 1 {
+		return fmt.Errorf("invalid authorization size in newgame action")
+	}
+	if action.Authorization[0].Actor != platformName {
+		return fmt.Errorf("invalid actor in newgame action")
+	}
+	if action.Authorization[0].Permission != eos.PN("gameaction") {
+		return fmt.Errorf("invalid permission name in newgame action")
+	}
+	return nil
+}
+
+func ValidateSignatures(pubKeys []ecc.PublicKey, platformPubKey ecc.PublicKey) error {
+	// sponsorship and platform signatures
+	if len(pubKeys) != 2 {
+		return fmt.Errorf("invalid signatures size in deposit txn")
+	}
+	if pubKeys[0].String() != platformPubKey.String() && pubKeys[1].String() != platformPubKey.String() {
+		return fmt.Errorf("platform pub key not found in deposit txn")
+	}
+	return nil
 }
