@@ -41,7 +41,7 @@ jobs:
   include:
     - stage: lint & test
       script:
-        - golangci-lint run
+        - golangci-lint run --skip-files 'test'
         - go test -v -race -coverprofile=coverage.txt -covermode=atomic .
     - stage: build & push
       script:

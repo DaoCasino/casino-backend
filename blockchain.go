@@ -116,12 +116,14 @@ func ValidateNewGameAction(action *eos.Action, platformName, gameName eos.Accoun
 }
 
 func ValidateSignatures(pubKeys []ecc.PublicKey, platformPubKey ecc.PublicKey) error {
-	// sponsorship and platform signatures
-	if len(pubKeys) != 2 {
+	// there are can be up to 3 signatures (platform deposit, platform gameaction, sponsor[optionally])
+	if len(pubKeys) != 2 && len(pubKeys) != 3 {
 		return fmt.Errorf("invalid signatures size in deposit txn")
 	}
-	if pubKeys[0].String() != platformPubKey.String() && pubKeys[1].String() != platformPubKey.String() {
-		return fmt.Errorf("platform pub key not found in deposit txn")
+	for i := range pubKeys {
+		if pubKeys[i].String() == platformPubKey.String() {
+			return nil
+		}
 	}
-	return nil
+	return fmt.Errorf("platform pub key not found in deposit txn")
 }
