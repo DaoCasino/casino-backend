@@ -13,6 +13,8 @@ signidicekey = "5JJvavvETHcGEx7ueoDry8zvcfPenbBCKcUQXXXXXX"
 rsakey = "base64 encoded pem key"
 url = "https://api.daobet.org"
 casinoAccountName = "daocasinoxxx"
+platformAccountName = "platform"
+platformPubKey = "EOS1234"
 chainID = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
 
 [http]

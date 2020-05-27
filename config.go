@@ -15,12 +15,14 @@ type Config struct {
 		ReconnectionDelay    int `default:"3"`
 	}
 	BlockChain struct {
-		DepositKey        string
-		SigniDiceKey      string
-		RSAKey            string
-		URL               string
-		ChainID           string
-		CasinoAccountName string
+		DepositKey          string
+		SigniDiceKey        string
+		RSAKey              string
+		URL                 string
+		ChainID             string
+		CasinoAccountName   string
+		PlatformAccountName string
+		PlatformPubKey      string
 	}
 	HTTP struct {
 		RetryAmount int `default:"3"`
