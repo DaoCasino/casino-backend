@@ -9,7 +9,15 @@ services:
   - docker
 
 env:
-  - IMG_NAME=daocasino/casinoback DOCKER_TAG_LATEST=true DOCKER_REGISTRY=registry.hub.docker.com
+  global:
+    - IMG_NAME=daocasino/casinoback
+    - DOCKER_TAG_LATEST=true
+    - DOCKER_REGISTRY=registry.hub.docker.com
+environments:
+  - &DEV_ENV
+    - AWS_DEFAULT_REGION=${DEV_AWS_REGION}
+    - AWS_ACCESS_KEY_ID=${DEV_AWS_ACCESS_KEY_ID}
+    - AWS_SECRET_ACCESS_KEY=${DEV_AWS_SECRET}
 
 before_install:
   - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
@@ -52,6 +60,12 @@ jobs:
            docker tag $IMG_NAME:master $IMG_NAME:latest
            docker push $IMG_NAME:latest
          fi
+    - stage: deploy
+      if: branch = develop
+      env:
+        - *DEV_ENV
+      script:
+        - docker run -e AWS_DEFAULT_REGION -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY silintl/ecs-deploy:latest -c platform-dev -n casino -i $IMG_NAME:latest
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
