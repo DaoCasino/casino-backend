@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/eoscanada/eos-go/token"
-
 	"github.com/eoscanada/eos-go"
 	"github.com/eoscanada/eos-go/ecc"
 	"github.com/rs/zerolog/log"
@@ -59,13 +57,7 @@ func ValidateDepositTransaction(
 	if err := ValidateTransferAction(transferAction, casinoName); err != nil {
 		return err
 	}
-
-	transferData, ok := transferAction.Data.(token.Transfer)
-	if !ok {
-		return fmt.Errorf("invalid transfer data")
-	}
-
-	if err := ValidateNewGameAction(tx.Actions[1], platformName, transferData.To); err != nil {
+	if err := ValidateNewGameAction(tx.Actions[1], platformName); err != nil {
 		return err
 	}
 
@@ -96,10 +88,7 @@ func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName) erro
 	return nil
 }
 
-func ValidateNewGameAction(action *eos.Action, platformName, gameName eos.AccountName) error {
-	if action.Account != gameName {
-		return fmt.Errorf("invalid contract name in newgame action")
-	}
+func ValidateNewGameAction(action *eos.Action, platformName eos.AccountName) error {
 	if action.Name != eos.ActN("newgame") {
 		return fmt.Errorf("invalid action name in newgame action")
 	}
