@@ -92,6 +92,7 @@ func MakeApp(cfg *Config) (*App, *os.File, error) {
 	brokerClient := broker.NewEventListener(cfg.Broker.URL, events)
 	brokerClient.ReconnectionAttempts = cfg.Broker.ReconnectionAttempts
 	brokerClient.ReconnectionDelay = time.Duration(cfg.Broker.ReconnectionDelay) * time.Second
+	brokerClient.SetToken(cfg.Broker.Token)
 	app := NewApp(bc, brokerClient, events, f, appConfig)
 	return app, f, nil
 }
