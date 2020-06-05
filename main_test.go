@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eoscanada/eos-go/token"
-
 	"github.com/eoscanada/eos-go/ecc"
 
 	"github.com/DaoCasino/casino-backend/mocks"
@@ -162,14 +160,12 @@ func TestValidateTransaction(t *testing.T) {
 	err = keyBag.Add(signiDicePk)
 	assert.Nil(err)
 	pubKeys, _ := keyBag.AvailableKeys()
-	qty, _ := eos.NewAssetFromString("10.0000 BET")
-	transferData := token.Transfer{From: eos.AN("player"), To: eos.AN("dice"), Quantity: qty, Memo: ""}
 	transferAction := &eos.Action{
 		Account: eos.AN("eosio.token"),
 		Name:    eos.ActN("transfer"),
 		Authorization: []eos.PermissionLevel{
 			{Actor: eos.AN("player"), Permission: eos.PN(casinoAccName)},
-		}, ActionData: eos.NewActionData(transferData),
+		},
 	}
 	newGameAction := &eos.Action{
 		Account: eos.AN("dice"),
@@ -181,11 +177,9 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateTransferAction(transferAction, eos.AN(casinoAccName)))
 	assert.Equal(ValidateTransferAction(transferAction, eos.AN("onebet")),
 		fmt.Errorf("invalid permission in transfer action"))
-	assert.Nil(ValidateNewGameAction(newGameAction, eos.AN(platformAccName), eos.AN("dice")))
-	assert.Equal(ValidateNewGameAction(newGameAction, eos.AN("buggyplatform"), eos.AN("dice")),
+	assert.Nil(ValidateNewGameAction(newGameAction, eos.AN(platformAccName)))
+	assert.Equal(ValidateNewGameAction(newGameAction, eos.AN("buggyplatform")),
 		fmt.Errorf("invalid actor in newgame action"))
-	assert.Equal(ValidateNewGameAction(newGameAction, eos.AN(platformAccName), eos.AN("tictactoe")),
-		fmt.Errorf("invalid contract name in newgame action"))
 	txn := *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction}, nil))
 	origTxn := txn
 	signedTxn, err := keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
