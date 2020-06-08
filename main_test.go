@@ -177,9 +177,9 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateTransferAction(transferAction, eos.AN(casinoAccName)))
 	assert.Equal(ValidateTransferAction(transferAction, eos.AN("onebet")),
 		fmt.Errorf("invalid permission in transfer action"))
-	assert.Nil(ValidateNewGameAction(newGameAction, eos.AN(platformAccName)))
-	assert.Equal(ValidateNewGameAction(newGameAction, eos.AN("buggyplatform")),
-		fmt.Errorf("invalid actor in newgame action"))
+	assert.Nil(ValidateGameAction(newGameAction, eos.AN(platformAccName)))
+	assert.Equal(ValidateGameAction(newGameAction, eos.AN("buggyplatform")),
+		fmt.Errorf("invalid actor in game action"))
 	txn := *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction}, nil))
 	origTxn := txn
 	signedTxn, err := keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])

@@ -57,7 +57,7 @@ func ValidateDepositTransaction(
 	if err := ValidateTransferAction(transferAction, casinoName); err != nil {
 		return err
 	}
-	if err := ValidateNewGameAction(tx.Actions[1], platformName); err != nil {
+	if err := ValidateGameAction(tx.Actions[1], platformName); err != nil {
 		return err
 	}
 
@@ -88,18 +88,18 @@ func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName) erro
 	return nil
 }
 
-func ValidateNewGameAction(action *eos.Action, platformName eos.AccountName) error {
-	if action.Name != eos.ActN("newgame") {
-		return fmt.Errorf("invalid action name in newgame action")
+func ValidateGameAction(action *eos.Action, platformName eos.AccountName) error {
+	if action.Name != eos.ActN("newgame") && action.Name != eos.ActN("gameaction") {
+		return fmt.Errorf("invalid action name in game action")
 	}
 	if len(action.Authorization) != 1 {
-		return fmt.Errorf("invalid authorization size in newgame action")
+		return fmt.Errorf("invalid authorization size in game action")
 	}
 	if action.Authorization[0].Actor != platformName {
-		return fmt.Errorf("invalid actor in newgame action")
+		return fmt.Errorf("invalid actor in game action")
 	}
 	if action.Authorization[0].Permission != eos.PN("gameaction") {
-		return fmt.Errorf("invalid permission name in newgame action")
+		return fmt.Errorf("invalid permission name in game action")
 	}
 	return nil
 }
