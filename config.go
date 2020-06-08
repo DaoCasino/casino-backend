@@ -13,6 +13,7 @@ type Config struct {
 		TopicID              broker.EventType
 		ReconnectionAttempts int `default:"3"`
 		ReconnectionDelay    int `default:"3"`
+		Token                string
 	}
 	BlockChain struct {
 		DepositKey          string

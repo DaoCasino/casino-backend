@@ -6,6 +6,7 @@ logLevel = "debug"
 topicOffsetPath = "offset.txt"
 url = "localhost:8889"
 topicID = 0
+token = "secretToken"
 
 [blockchain]
 depositkey = "5JJvavvETHcGEx7ueoDry8zvcfPenbBCKcUQXXXXXX"
