@@ -204,7 +204,6 @@ func respondWithJSON(writer ResponseWriter, code int, payload interface{}) {
 }
 
 func (app *App) PingQuery(writer ResponseWriter, req *Request) {
-	log.Info().Msg("Called /ping")
 	respondWithJSON(writer, http.StatusOK, JSONResponse{"result": "pong"})
 }
 
