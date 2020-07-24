@@ -80,7 +80,6 @@ func MakeApp(cfg *Config) (*App, *os.File, error) {
 	}
 
 	events := make(chan *broker.EventMessage)
-
 	f, err := os.OpenFile(cfg.Broker.TopicOffsetPath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, nil, err

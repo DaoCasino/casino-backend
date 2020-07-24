@@ -4,13 +4,16 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DaoCasino/casino-backend/utils"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
@@ -57,12 +60,18 @@ type AppConfig struct {
 	HTTP       HTTPConfig
 }
 
+type PromMetrics struct {
+	SigniDiceProcessingTimeMs       prometheus.Histogram
+	SignTransactionProcessingTimeMs prometheus.Histogram
+}
+
 type App struct {
 	bcAPI         *eos.API
 	BrokerClient  EventListener
-	OffsetHandler io.Writer
+	OffsetHandler utils.FileStorage
 	EventMessages chan *broker.EventMessage
 	*AppConfig
+	Metrics *PromMetrics
 }
 
 type EventListener interface {
@@ -73,19 +82,23 @@ type EventListener interface {
 }
 
 func NewApp(bcAPI *eos.API, brokerClient EventListener, eventMessages chan *broker.EventMessage,
-	offsetHandler io.Writer,
+	offsetHandler utils.FileStorage,
 	cfg *AppConfig) *App {
 	return &App{bcAPI: bcAPI, BrokerClient: brokerClient, OffsetHandler: offsetHandler,
-		EventMessages: eventMessages, AppConfig: cfg}
+		EventMessages: eventMessages, AppConfig: cfg, Metrics: GetMetrics()}
 }
 
 func (app *App) processEvent(event *broker.Event) *string {
 	log.Debug().Msgf("Processing event %+v", event)
+	start := time.Now()
+	defer func() {
+		elapsed := time.Now().Sub(start)
+		app.Metrics.SigniDiceProcessingTimeMs.Observe(elapsed.Seconds() * 1000)
+	}()
 	var data struct {
 		Digest eos.Checksum256 `json:"digest"`
 	}
 	parseError := json.Unmarshal(event.Data, &data)
-
 	if parseError != nil {
 		log.Error().Msgf("Couldnt get digest from event, reason: %s", parseError.Error())
 		return nil
@@ -150,6 +163,41 @@ func (app *App) RunEventProcessor(ctx context.Context) {
 	}
 }
 
+func GetMetrics() *PromMetrics {
+	signiDiceProcessingTimeMs := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "signidice_part_2_event_ms",
+			Help:    "signidice part 2 event processing time in ms",
+			Buckets: []float64{20, 50, 100, 200, 500},
+		})
+	signTransactionProcessingTimeMs := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "http_sign_transaction_ms",
+			Help:    "HTTP /sign_transaction query processing time in ms",
+			Buckets: []float64{20, 50, 100, 200, 500},
+		})
+	prometheus.MustRegister(signiDiceProcessingTimeMs)
+	prometheus.MustRegister(signTransactionProcessingTimeMs)
+	return &PromMetrics{signiDiceProcessingTimeMs, signTransactionProcessingTimeMs}
+}
+
+func (app *App) InitMetrics() {
+	app.Metrics.SigniDiceProcessingTimeMs = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "signidice_part_2_event_ms",
+			Help:    "signidice part 2 event processing time in ms",
+			Buckets: []float64{20, 50, 100, 200, 500},
+		})
+	app.Metrics.SignTransactionProcessingTimeMs = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "http_sign_transaction_ms",
+			Help:    "HTTP /sign_transaction query processing time in ms",
+			Buckets: []float64{20, 50, 100, 200, 500},
+		})
+	prometheus.MustRegister(app.Metrics.SigniDiceProcessingTimeMs)
+	prometheus.MustRegister(app.Metrics.SignTransactionProcessingTimeMs)
+}
+
 func (app *App) Run(addr string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	errGroup, ctx := errgroup.WithContext(ctx)
@@ -209,6 +257,11 @@ func (app *App) PingQuery(writer ResponseWriter, req *Request) {
 
 func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	log.Info().Msg("Called /sign_transaction")
+	start := time.Now()
+	defer func() {
+		elapsed := time.Now().Sub(start)
+		app.Metrics.SignTransactionProcessingTimeMs.Observe(elapsed.Seconds() * 1000)
+	}()
 	rawTransaction, _ := ioutil.ReadAll(req.Body)
 	tx := &eos.SignedTransaction{}
 	err := json.Unmarshal(rawTransaction, tx)
@@ -253,5 +306,6 @@ func (app *App) GetRouter() *mux.Router {
 	var router mux.Router
 	router.HandleFunc("/ping", app.PingQuery).Methods("GET")
 	router.HandleFunc("/sign_transaction", app.SignQuery).Methods("POST")
+	router.Handle("/metrics", promhttp.Handler())
 	return &router
 }
