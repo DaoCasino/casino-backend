@@ -34,8 +34,12 @@ func ReadOffset(r FileStorage) (uint64, error) {
 func WriteOffset(w FileStorage, offset uint64) error {
 	log.Debug().Msgf("writing offset, value: %v", offset)
 	bs := []byte(strconv.Itoa(int(offset)))
-	w.Truncate(0)
-	w.Seek(0, 0)
+	if err := w.Truncate(0); err != nil {
+		return err
+	}
+	if _, err := w.Seek(0, 0); err != nil {
+		return err
+	}
 	_, err := w.Write(bs)
 	return err
 }

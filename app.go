@@ -92,7 +92,7 @@ func (app *App) processEvent(event *broker.Event) *string {
 	log.Debug().Msgf("Processing event %+v", event)
 	start := time.Now()
 	defer func() {
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		app.Metrics.SigniDiceProcessingTimeMs.Observe(elapsed.Seconds() * 1000)
 	}()
 	var data struct {
@@ -259,7 +259,7 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	log.Info().Msg("Called /sign_transaction")
 	start := time.Now()
 	defer func() {
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		app.Metrics.SignTransactionProcessingTimeMs.Observe(elapsed.Seconds() * 1000)
 	}()
 	rawTransaction, _ := ioutil.ReadAll(req.Body)
