@@ -48,8 +48,13 @@ func (b *SafeBuffer) String() string {
 	return b.b.String()
 }
 
-func (b *SafeBuffer) Reset() {
+func (b *SafeBuffer) Truncate(size int64) error {
 	b.m.Lock()
 	defer b.m.Unlock()
 	b.b.Reset()
+	return nil
+}
+
+func (b *SafeBuffer) Seek(offset int64, whence int) (ret int64, err error) {
+	return 0, nil
 }
