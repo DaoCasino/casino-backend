@@ -166,36 +166,19 @@ func (app *App) RunEventProcessor(ctx context.Context) {
 func GetMetrics() *PromMetrics {
 	signiDiceProcessingTimeMs := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    "signidice_part_2_event_ms",
+			Name:    "casino_signidice_part_2_event_ms",
 			Help:    "signidice part 2 event processing time in ms",
 			Buckets: []float64{20, 50, 100, 200, 500},
 		})
 	signTransactionProcessingTimeMs := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    "http_sign_transaction_ms",
+			Name:    "casino_http_sign_transaction_ms",
 			Help:    "HTTP /sign_transaction query processing time in ms",
 			Buckets: []float64{20, 50, 100, 200, 500},
 		})
 	prometheus.MustRegister(signiDiceProcessingTimeMs)
 	prometheus.MustRegister(signTransactionProcessingTimeMs)
 	return &PromMetrics{signiDiceProcessingTimeMs, signTransactionProcessingTimeMs}
-}
-
-func (app *App) InitMetrics() {
-	app.Metrics.SigniDiceProcessingTimeMs = prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "signidice_part_2_event_ms",
-			Help:    "signidice part 2 event processing time in ms",
-			Buckets: []float64{20, 50, 100, 200, 500},
-		})
-	app.Metrics.SignTransactionProcessingTimeMs = prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "http_sign_transaction_ms",
-			Help:    "HTTP /sign_transaction query processing time in ms",
-			Buckets: []float64{20, 50, 100, 200, 500},
-		})
-	prometheus.MustRegister(app.Metrics.SigniDiceProcessingTimeMs)
-	prometheus.MustRegister(app.Metrics.SignTransactionProcessingTimeMs)
 }
 
 func (app *App) Run(addr string) error {
