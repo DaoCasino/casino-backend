@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/DaoCasino/casino-backend/metrics"
 
 	"github.com/DaoCasino/casino-backend/utils"
 	broker "github.com/DaoCasino/platform-action-monitor-client"
@@ -60,7 +61,7 @@ type AppConfig struct {
 type App struct {
 	bcAPI         *eos.API
 	BrokerClient  EventListener
-	OffsetHandler io.Writer
+	OffsetHandler utils.FileStorage
 	EventMessages chan *broker.EventMessage
 	*AppConfig
 }
@@ -73,7 +74,7 @@ type EventListener interface {
 }
 
 func NewApp(bcAPI *eos.API, brokerClient EventListener, eventMessages chan *broker.EventMessage,
-	offsetHandler io.Writer,
+	offsetHandler utils.FileStorage,
 	cfg *AppConfig) *App {
 	return &App{bcAPI: bcAPI, BrokerClient: brokerClient, OffsetHandler: offsetHandler,
 		EventMessages: eventMessages, AppConfig: cfg}
@@ -81,11 +82,15 @@ func NewApp(bcAPI *eos.API, brokerClient EventListener, eventMessages chan *brok
 
 func (app *App) processEvent(event *broker.Event) *string {
 	log.Debug().Msgf("Processing event %+v", event)
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		metrics.SigniDiceProcessingTimeMs.Observe(elapsed.Seconds() * 1000)
+	}()
 	var data struct {
 		Digest eos.Checksum256 `json:"digest"`
 	}
 	parseError := json.Unmarshal(event.Data, &data)
-
 	if parseError != nil {
 		log.Error().Msgf("Couldnt get digest from event, reason: %s", parseError.Error())
 		return nil
@@ -209,6 +214,11 @@ func (app *App) PingQuery(writer ResponseWriter, req *Request) {
 
 func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	log.Info().Msg("Called /sign_transaction")
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		metrics.SignTransactionProcessingTimeMs.Observe(elapsed.Seconds() * 1000)
+	}()
 	rawTransaction, _ := ioutil.ReadAll(req.Body)
 	tx := &eos.SignedTransaction{}
 	err := json.Unmarshal(rawTransaction, tx)
@@ -253,5 +263,6 @@ func (app *App) GetRouter() *mux.Router {
 	var router mux.Router
 	router.HandleFunc("/ping", app.PingQuery).Methods("GET")
 	router.HandleFunc("/sign_transaction", app.SignQuery).Methods("POST")
+	router.Handle("/metrics", metrics.GetHandler())
 	return &router
 }
