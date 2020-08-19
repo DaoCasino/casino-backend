@@ -297,7 +297,6 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 					return nil
 				}
 			}
-			return e
 		}
 		return e
 	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
