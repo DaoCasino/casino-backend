@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -21,6 +22,12 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/zenazn/goji/graceful"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	GetInfoCacheTTL = 1 // seconds
+	EosInternalErrorCode = 500 // internal error HTTP code
+	EosInternalDuplicateErrorCode = 3040008 // see: https://github.com/DaoCasino/DAObet/blob/master/libraries/chain/include/eosio/chain/exceptions.hpp
 )
 
 type ResponseWriter = http.ResponseWriter
@@ -60,6 +67,9 @@ type AppConfig struct {
 
 type App struct {
 	bcAPI         *eos.API
+	lastGetInfoStamp time.Time
+	lastGetInfoLock  sync.Mutex
+	lastCachedInfo *eos.InfoResp
 	BrokerClient  EventListener
 	OffsetHandler utils.FileStorage
 	EventMessages chan *broker.EventMessage
@@ -78,6 +88,30 @@ func NewApp(bcAPI *eos.API, brokerClient EventListener, eventMessages chan *brok
 	cfg *AppConfig) *App {
 	return &App{bcAPI: bcAPI, BrokerClient: brokerClient, OffsetHandler: offsetHandler,
 		EventMessages: eventMessages, AppConfig: cfg}
+}
+
+func (app *App) getTxOpts() (*eos.TxOptions, error) {
+	app.lastGetInfoLock.Lock()
+	defer app.lastGetInfoLock.Unlock()
+
+	var info *eos.InfoResp
+
+	if !app.lastGetInfoStamp.IsZero() && time.Now().Add(-GetInfoCacheTTL*time.Second).Before(app.lastGetInfoStamp) {
+		info = app.lastCachedInfo
+	} else {
+		var err error
+		info, err = app.bcAPI.GetInfo()
+		if err != nil {
+			return nil, err
+		}
+		app.lastGetInfoStamp = time.Now()
+		app.lastCachedInfo = info
+	}
+
+	return &eos.TxOptions{
+		ChainID:          info.ChainID,
+		HeadBlockID:      info.LastIrreversibleBlockID, // set lib as TAPOS block reference
+	}, nil
 }
 
 func (app *App) processEvent(event *broker.Event) *string {
@@ -104,9 +138,11 @@ func (app *App) processEvent(event *broker.Event) *string {
 		return nil
 	}
 
-	txOpts := &eos.TxOptions{}
+	var txOpts *eos.TxOptions
 	err := utils.RetryWithTimeout(func() error {
-		return txOpts.FillFromChain(api)
+		var e error
+		txOpts, e = app.getTxOpts()
+		return e
 	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
 	if err != nil {
 		log.Error().Msgf("failed to get blockchain state, reason: %s", err.Error())
@@ -243,10 +279,25 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	}
 	log.Debug().Msg(signedTx.String())
 	packedTrx, _ := signedTx.Pack(eos.CompressionNone)
-	var result *eos.PushTransactionFullResp
+	trxID, err := packedTrx.ID()
+	if err != nil {
+		log.Warn().Msgf("failed to calc trx ID, reason: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to calc trx ID")
+		return
+	}
+
 	sendError := utils.RetryWithTimeout(func() error {
 		var e error
-		result, e = app.bcAPI.PushTransaction(packedTrx)
+		_, e = app.bcAPI.PushTransaction(packedTrx)
+		if e != nil {
+			if apiErr, ok := e.(eos.APIError); ok {
+				// if error is duplicate trx assume as OK
+				if apiErr.Code == EosInternalErrorCode && apiErr.ErrorStruct.Code == EosInternalDuplicateErrorCode {
+					log.Debug().Msgf("Got duplicate trx error, assuming as OK, trx_id: %s", trxID.String())
+					return nil
+				}
+			}
+		}
 		return e
 	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
 	if sendError != nil {
@@ -256,7 +307,7 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 		return
 	}
 
-	respondWithJSON(writer, http.StatusOK, JSONResponse{"txid": result.TransactionID})
+	respondWithJSON(writer, http.StatusOK, JSONResponse{"txid": trxID.String()})
 }
 
 func (app *App) GetRouter() *mux.Router {
