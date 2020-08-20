@@ -45,20 +45,40 @@ func GetSigndiceTransaction(
 	return tx.Pack(eos.CompressionNone)
 }
 
+// allowed only 3 invariants: {transfer, newgame}, {transfer, gameaction}, {transfer, newgame, gameaction}
 func ValidateDepositTransaction(
 	tx *eos.SignedTransaction,
 	casinoName, platformName eos.AccountName,
 	platformPubKey ecc.PublicKey,
 	chainID eos.Checksum256) error {
-	if len(tx.Actions) != 2 {
+	if len(tx.Actions) != 2 && len(tx.Actions) != 3 {
 		return fmt.Errorf("invalid actions size")
 	}
-	transferAction := tx.Actions[0]
+
+	transferAction := tx.Actions[0] // first action always is transfer
 	if err := ValidateTransferAction(transferAction, casinoName); err != nil {
 		return err
 	}
-	if err := ValidateGameAction(tx.Actions[1], platformName); err != nil {
+
+	// just validate second action authority
+	if err := ValidateGameActionAuth(tx.Actions[1], platformName); err != nil {
 		return err
+	}
+
+	if len(tx.Actions) == 2 { // if newgame or gameaction (1 and 2 invariants)
+		if !isNewGame(tx.Actions[1]) && !isGameAction(tx.Actions[1]) {
+			return fmt.Errorf("allowed only gameaction or newgame")
+		}
+	} else { // if gameaction and newgame at same time (3 invariant)
+		// just validate additional action authority
+		if err := ValidateGameActionAuth(tx.Actions[2], platformName); err != nil {
+			return err
+		}
+
+		// first action should be newgame, second gameaction
+		if !isNewGame(tx.Actions[1]) || !isGameAction(tx.Actions[2]) {
+			return fmt.Errorf("first action should be newgame, second gameaction")
+		}
 	}
 
 	pubKeys, err := tx.SignedByKeys(chainID)
@@ -88,10 +108,7 @@ func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName) erro
 	return nil
 }
 
-func ValidateGameAction(action *eos.Action, platformName eos.AccountName) error {
-	if action.Name != eos.ActN("newgame") && action.Name != eos.ActN("gameaction") {
-		return fmt.Errorf("invalid action name in game action")
-	}
+func ValidateGameActionAuth(action *eos.Action, platformName eos.AccountName) error {
 	if len(action.Authorization) != 1 {
 		return fmt.Errorf("invalid authorization size in game action")
 	}
@@ -115,4 +132,12 @@ func ValidateSignatures(pubKeys []ecc.PublicKey, platformPubKey ecc.PublicKey) e
 		}
 	}
 	return fmt.Errorf("platform pub key not found in deposit txn")
+}
+
+func isNewGame(action *eos.Action) bool {
+	return action.Name == eos.ActN("newgame")
+}
+
+func isGameAction(action *eos.Action) bool {
+	return action.Name == eos.ActN("gameaction")
 }
