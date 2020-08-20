@@ -126,7 +126,7 @@ func (app *App) processEvent(event *broker.Event) *string {
 	}
 	parseError := json.Unmarshal(event.Data, &data)
 	if parseError != nil {
-		log.Error().Msgf("Couldnt get digest from event, reason: %s", parseError.Error())
+		log.Error().Msgf("Couldnt get digest from event, sessionID: %d, reason: %s", event.RequestID, parseError.Error())
 		return nil
 	}
 
@@ -134,7 +134,7 @@ func (app *App) processEvent(event *broker.Event) *string {
 	signature, signError := utils.RsaSign(data.Digest, app.BlockChain.RSAKey)
 
 	if signError != nil {
-		log.Error().Msgf("Couldnt sign signidice_part_2, reason: %s", signError.Error())
+		log.Error().Msgf("Couldnt sign signidice_part_2, sessionID: %d, reason: %s", event.RequestID, signError.Error())
 		return nil
 	}
 
@@ -145,23 +145,23 @@ func (app *App) processEvent(event *broker.Event) *string {
 		return e
 	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
 	if err != nil {
-		log.Error().Msgf("failed to get blockchain state, reason: %s", err.Error())
+		log.Error().Msgf("Failed to get blockchain state, sessionID: %d, reason: %s", event.RequestID, err.Error())
 		return nil
 	}
 	packedTx, err := GetSigndiceTransaction(api, eos.AN(event.Sender), app.BlockChain.CasinoAccountName,
 		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice, txOpts)
 
 	if err != nil {
-		log.Error().Msgf("couldn't form transaction, reason: %s", err.Error())
+		log.Error().Msgf("Couldn't form signidice_part_2 trx, sessionID: %d, reason: %s", event.RequestID, err.Error())
 		return nil
 	}
 
 	result, sendError := api.PushTransaction(packedTx)
 	if sendError != nil {
-		log.Error().Msg("Failed to send transaction, reason: " + sendError.Error())
+		log.Error().Msgf("Failed to send signidice_part_2 trx, sessionID: %d, reason: %s", event.RequestID, sendError.Error())
 		return nil
 	}
-	log.Debug().Msg("Successfully signed and sent txn, id: " + result.TransactionID)
+	log.Info().Msgf("Successfully sent signidice_part_2 txn, sessionID: %d, trxID: %s", event.RequestID, result.TransactionID)
 	return &result.TransactionID
 }
 
