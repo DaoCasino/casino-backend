@@ -174,12 +174,24 @@ func TestValidateTransaction(t *testing.T) {
 			{Actor: eos.AN(platformAccName), Permission: eos.PN("gameaction")},
 		},
 	}
+	gameActionAction := &eos.Action{
+		Account: eos.AN("dice"),
+		Name:    eos.ActN("gameaction"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: eos.AN(platformAccName), Permission: eos.PN("gameaction")},
+		},
+	}
 	assert.Nil(ValidateTransferAction(transferAction, eos.AN(casinoAccName)))
 	assert.Equal(ValidateTransferAction(transferAction, eos.AN("onebet")),
 		fmt.Errorf("invalid permission in transfer action"))
-	assert.Nil(ValidateGameAction(newGameAction, eos.AN(platformAccName)))
-	assert.Equal(ValidateGameAction(newGameAction, eos.AN("buggyplatform")),
+	assert.Nil(ValidateGameActionAuth(newGameAction, eos.AN(platformAccName)))
+	assert.Equal(ValidateGameActionAuth(newGameAction, eos.AN("buggyplatform")),
 		fmt.Errorf("invalid actor in game action"))
+	assert.Nil(ValidateGameActionAuth(gameActionAction, eos.AN(platformAccName)))
+	assert.Equal(ValidateGameActionAuth(gameActionAction, eos.AN("buggyplatform")),
+		fmt.Errorf("invalid actor in game action"))
+
+	// {transfer, newgame} ok
 	txn := *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction}, nil))
 	origTxn := txn
 	signedTxn, err := keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
@@ -189,6 +201,7 @@ func TestValidateTransaction(t *testing.T) {
 		a.BlockChain.PlatformPubKey,
 		eos.Checksum256(chainID)))
 
+	// {transfer, newgame} invalid keys
 	nonPlatformTxn, err := keyBag.Sign(&origTxn, eos.Checksum256(chainID), pubKeys[0], pubKeys[2])
 	assert.Nil(err)
 	assert.Equal(ValidateDepositTransaction(nonPlatformTxn,
@@ -196,4 +209,52 @@ func TestValidateTransaction(t *testing.T) {
 		a.BlockChain.PlatformPubKey,
 		eos.Checksum256(chainID)),
 		fmt.Errorf("platform pub key not found in deposit txn"))
+
+	// {transfer, gameaction} ok
+	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, gameActionAction}, nil))
+	signedTxn, err = keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
+	assert.Nil(err)
+	assert.Nil(ValidateDepositTransaction(signedTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)))
+
+	// {transfer, newgame, gameaction} ok
+	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction, gameActionAction}, nil))
+	signedTxn, err = keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
+	assert.Nil(err)
+	assert.Nil(ValidateDepositTransaction(signedTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)))
+
+	// {transfer, newgame, newgame} invalid
+	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction, newGameAction}, nil))
+	signedTxn, err = keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
+	assert.Nil(err)
+	assert.Equal(ValidateDepositTransaction(signedTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)),
+		fmt.Errorf("first action should be newgame, second gameaction"))
+
+	// {transfer, gameaction, newgame} invalid
+	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction, newGameAction}, nil))
+	signedTxn, err = keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
+	assert.Nil(err)
+	assert.Equal(ValidateDepositTransaction(signedTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)),
+		fmt.Errorf("first action should be newgame, second gameaction"))
+
+	// {transfer, gameaction, gameaction} invalid
+	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction, newGameAction}, nil))
+	signedTxn, err = keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
+	assert.Nil(err)
+	assert.Equal(ValidateDepositTransaction(signedTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)),
+		fmt.Errorf("first action should be newgame, second gameaction"))
 }
