@@ -25,9 +25,10 @@ import (
 )
 
 const (
-	GetInfoCacheTTL = 1 // seconds
+	GetInfoCacheTTL      = 1   // seconds
 	EosInternalErrorCode = 500 // internal error HTTP code
-	EosInternalDuplicateErrorCode = 3040008 // see: https://github.com/DaoCasino/DAObet/blob/master/libraries/chain/include/eosio/chain/exceptions.hpp
+	// see: https://github.com/DaoCasino/DAObet/blob/master/libraries/chain/include/eosio/chain/exceptions.hpp
+	EosInternalDuplicateErrorCode = 3040008
 )
 
 type ResponseWriter = http.ResponseWriter
@@ -66,13 +67,13 @@ type AppConfig struct {
 }
 
 type App struct {
-	bcAPI         *eos.API
+	bcAPI            *eos.API
 	lastGetInfoStamp time.Time
 	lastGetInfoLock  sync.Mutex
-	lastCachedInfo *eos.InfoResp
-	BrokerClient  EventListener
-	OffsetHandler utils.FileStorage
-	EventMessages chan *broker.EventMessage
+	lastCachedInfo   *eos.InfoResp
+	BrokerClient     EventListener
+	OffsetHandler    utils.FileStorage
+	EventMessages    chan *broker.EventMessage
 	*AppConfig
 }
 
@@ -109,8 +110,8 @@ func (app *App) getTxOpts() (*eos.TxOptions, error) {
 	}
 
 	return &eos.TxOptions{
-		ChainID:          info.ChainID,
-		HeadBlockID:      info.LastIrreversibleBlockID, // set lib as TAPOS block reference
+		ChainID:     info.ChainID,
+		HeadBlockID: info.LastIrreversibleBlockID, // set lib as TAPOS block reference
 	}, nil
 }
 
@@ -158,10 +159,12 @@ func (app *App) processEvent(event *broker.Event) *string {
 
 	result, sendError := api.PushTransaction(packedTx)
 	if sendError != nil {
-		log.Error().Msgf("Failed to send signidice_part_2 trx, sessionID: %d, reason: %s", event.RequestID, sendError.Error())
+		log.Error().Msgf("Failed to send signidice_part_2 trx, "+
+			"sessionID: %d, reason: %s", event.RequestID, sendError.Error())
 		return nil
 	}
-	log.Info().Msgf("Successfully sent signidice_part_2 txn, sessionID: %d, trxID: %s", event.RequestID, result.TransactionID)
+	log.Info().Msgf("Successfully sent signidice_part_2 txn, "+
+		"sessionID: %d, trxID: %s", event.RequestID, result.TransactionID)
 	return &result.TransactionID
 }
 
@@ -172,8 +175,8 @@ func (app *App) RunEventProcessor(ctx context.Context) {
 			return
 		case eventMessage, ok := <-app.EventMessages:
 			if !ok {
-				log.Debug().Msg("Failed to read events")
-				break
+				log.Debug().Msg("Shutting down cause event-monitor isn't responding")
+				return
 			}
 			if len(eventMessage.Events) == 0 {
 				log.Debug().Msg("Gotta event message with no events")
