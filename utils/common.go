@@ -33,7 +33,7 @@ func Retry(f func() error, n int, retryDelay time.Duration) error {
 	return e
 }
 
-func RetryWithTimeout(f func() error, n int, timeout time.Duration, retryDelay time.Duration) error {
+func RetryWithTimeout(f func() error, n int, timeout, retryDelay time.Duration) error {
 	var e error
 	for n > 0 {
 		if e = WithTimeout(f, timeout); e == nil {

@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/DaoCasino/casino-backend/utils"
 
 	"github.com/eoscanada/eos-go"
 	"github.com/eoscanada/eos-go/ecc"
@@ -140,4 +143,22 @@ func isNewGame(action *eos.Action) bool {
 
 func isGameAction(action *eos.Action) bool {
 	return action.Name == eos.ActN("gameaction")
+}
+
+func SendPackedTrxWithRetries(bcAPI *eos.API, packedTrx *eos.PackedTransaction, trxID string,
+	retries int, timeout, retryDelay time.Duration) error {
+	return utils.RetryWithTimeout(func() error {
+		var e error
+		_, e = bcAPI.PushTransaction(packedTrx)
+		if e != nil {
+			if apiErr, ok := e.(eos.APIError); ok {
+				// if error is duplicate trx assume as OK
+				if apiErr.Code == EosInternalErrorCode && apiErr.ErrorStruct.Code == EosInternalDuplicateErrorCode {
+					log.Debug().Msgf("Got duplicate trx error, assuming as OK, trx_id: %s", trxID)
+					return nil
+				}
+			}
+		}
+		return e
+	}, retries, timeout, retryDelay)
 }

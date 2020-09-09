@@ -127,7 +127,8 @@ func (app *App) processEvent(event *broker.Event) *string {
 	}
 	parseError := json.Unmarshal(event.Data, &data)
 	if parseError != nil {
-		log.Error().Msgf("Couldnt get digest from event, sessionID: %d, reason: %s", event.RequestID, parseError.Error())
+		log.Error().Msgf("Couldnt get digest from event, "+
+			"sessionID: %d, reason: %s", event.RequestID, parseError.Error())
 		return nil
 	}
 
@@ -135,7 +136,8 @@ func (app *App) processEvent(event *broker.Event) *string {
 	signature, signError := utils.RsaSign(data.Digest, app.BlockChain.RSAKey)
 
 	if signError != nil {
-		log.Error().Msgf("Couldnt sign signidice_part_2, sessionID: %d, reason: %s", event.RequestID, signError.Error())
+		log.Error().Msgf("Couldnt sign signidice_part_2, "+
+			"sessionID: %d, reason: %s", event.RequestID, signError.Error())
 		return nil
 	}
 
@@ -146,26 +148,34 @@ func (app *App) processEvent(event *broker.Event) *string {
 		return e
 	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
 	if err != nil {
-		log.Error().Msgf("Failed to get blockchain state, sessionID: %d, reason: %s", event.RequestID, err.Error())
+		log.Error().Msgf("Failed to get blockchain state, "+
+			"sessionID: %d, reason: %s", event.RequestID, err.Error())
 		return nil
 	}
-	packedTx, err := GetSigndiceTransaction(api, eos.AN(event.Sender), app.BlockChain.CasinoAccountName,
+	packedTrx, err := GetSigndiceTransaction(api, eos.AN(event.Sender), app.BlockChain.CasinoAccountName,
 		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice, txOpts)
 
 	if err != nil {
-		log.Error().Msgf("Couldn't form signidice_part_2 trx, sessionID: %d, reason: %s", event.RequestID, err.Error())
+		log.Error().Msgf("Couldn't form signidice_part_2 trx, "+
+			"sessionID: %d, reason: %s", event.RequestID, err.Error())
 		return nil
 	}
 
-	result, sendError := api.PushTransaction(packedTx)
-	if sendError != nil {
+	trxID, err := packedTrx.ID()
+	if err != nil {
+		log.Warn().Msgf("failed to calc trx ID, reason: %s", err.Error())
+		return nil
+	}
+	trxHexEncoded := trxID.String()
+	if sendError := SendPackedTrxWithRetries(app.bcAPI, packedTrx, trxHexEncoded,
+		app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay); sendError != nil {
 		log.Error().Msgf("Failed to send signidice_part_2 trx, "+
 			"sessionID: %d, reason: %s", event.RequestID, sendError.Error())
 		return nil
 	}
 	log.Info().Msgf("Successfully sent signidice_part_2 txn, "+
-		"sessionID: %d, trxID: %s", event.RequestID, result.TransactionID)
-	return &result.TransactionID
+		"sessionID: %d, trxID: %s", event.RequestID, trxHexEncoded)
+	return &trxHexEncoded
 }
 
 func (app *App) RunEventProcessor(ctx context.Context) {
@@ -289,21 +299,8 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 		return
 	}
 
-	sendError := utils.RetryWithTimeout(func() error {
-		var e error
-		_, e = app.bcAPI.PushTransaction(packedTrx)
-		if e != nil {
-			if apiErr, ok := e.(eos.APIError); ok {
-				// if error is duplicate trx assume as OK
-				if apiErr.Code == EosInternalErrorCode && apiErr.ErrorStruct.Code == EosInternalDuplicateErrorCode {
-					log.Debug().Msgf("Got duplicate trx error, assuming as OK, trx_id: %s", trxID.String())
-					return nil
-				}
-			}
-		}
-		return e
-	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay)
-	if sendError != nil {
+	if sendError := SendPackedTrxWithRetries(app.bcAPI, packedTrx, trxID.String(),
+		app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay); sendError != nil {
 		log.Debug().Msgf("failed to send transaction to the blockchain, reason: %s", sendError.Error())
 		respondWithError(writer, http.StatusBadRequest, "failed to send transaction to the blockchain, reason: "+
 			sendError.Error())
