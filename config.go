@@ -16,14 +16,14 @@ type Config struct {
 		Token                string
 	}
 	BlockChain struct {
-		DepositKey          string
-		SigniDiceKey        string
-		RSAKey              string
-		URL                 string
-		ChainID             string
-		CasinoAccountName   string
-		PlatformAccountName string
-		PlatformPubKey      string
+		DepositKey           string
+		SigniDiceKey         string
+		SigniDiceAccountName string
+		RSAKey               string
+		URL                  string
+		ChainID              string
+		PlatformAccountName  string
+		PlatformPubKey       string
 	}
 	HTTP struct {
 		RetryAmount int `default:"3"`

@@ -11,12 +11,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func NewSigndice(contract, casinoAccount eos.AccountName, requestID uint64, signature string) *eos.Action {
+func NewSigndice(contract, signerAccount eos.AccountName, requestID uint64, signature string) *eos.Action {
 	return &eos.Action{
 		Account: contract,
 		Name:    eos.ActN("sgdicesecond"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: casinoAccount, Permission: eos.PN("signidice")},
+			{Actor: signerAccount, Permission: eos.PN("active")},
 		},
 		ActionData: eos.NewActionData(Signidice{
 			requestID,
@@ -33,12 +33,12 @@ type Signidice struct {
 
 func GetSigndiceTransaction(
 	api *eos.API,
-	contract, casinoAccount eos.AccountName,
+	contract, signerAccount eos.AccountName,
 	requestID uint64, signature string,
 	signidiceKey ecc.PublicKey,
 	txOpts *eos.TxOptions,
 ) (*eos.PackedTransaction, error) {
-	action := NewSigndice(contract, casinoAccount, requestID, signature)
+	action := NewSigndice(contract, signerAccount, requestID, signature)
 	tx := eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{action}, txOpts))
 	signedTx, err := api.Signer.Sign(tx, txOpts.ChainID, signidiceKey)
 	if err != nil {
