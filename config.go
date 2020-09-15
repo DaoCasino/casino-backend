@@ -19,6 +19,7 @@ type Config struct {
 		DepositKey           string
 		SigniDiceKey         string
 		SigniDiceAccountName string
+		CasinoAccountName    string
 		RSAKey               string
 		URL                  string
 		ChainID              string
