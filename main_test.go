@@ -49,6 +49,7 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 		BlockChainConfig{
 			eos.Checksum256(chainID),
 			casinoAccName,
+			casinoAccName,
 			PubKeys{pubKeys[0], pubKeys[1]},
 			rsaKey,
 			platformAccName,

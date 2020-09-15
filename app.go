@@ -48,6 +48,7 @@ type PubKeys struct {
 type BlockChainConfig struct {
 	ChainID             eos.Checksum256
 	SignerAccountName   eos.AccountName
+	CasinoAccountName   eos.AccountName
 	EosPubKeys          PubKeys
 	RSAKey              *rsa.PrivateKey
 	PlatformAccountName eos.AccountName
@@ -277,7 +278,7 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 		respondWithError(writer, http.StatusBadRequest, "failed to deserialize transaction")
 		return
 	}
-	if err := ValidateDepositTransaction(tx, app.BlockChain.SignerAccountName, app.BlockChain.PlatformAccountName,
+	if err := ValidateDepositTransaction(tx, app.BlockChain.CasinoAccountName, app.BlockChain.PlatformAccountName,
 		app.BlockChain.PlatformPubKey,
 		app.BlockChain.ChainID); err != nil {
 		log.Debug().Msgf("invalid transaction supplied, reason: %s", err.Error())
