@@ -47,6 +47,7 @@ type PubKeys struct {
 
 type BlockChainConfig struct {
 	ChainID             eos.Checksum256
+	SignerAccountName   eos.AccountName
 	CasinoAccountName   eos.AccountName
 	EosPubKeys          PubKeys
 	RSAKey              *rsa.PrivateKey
@@ -152,7 +153,8 @@ func (app *App) processEvent(event *broker.Event) *string {
 			"sessionID: %d, reason: %s", event.RequestID, err.Error())
 		return nil
 	}
-	packedTrx, err := GetSigndiceTransaction(api, eos.AN(event.Sender), app.BlockChain.CasinoAccountName,
+
+	packedTrx, err := GetSigndiceTransaction(api, eos.AN(event.Sender), app.BlockChain.SignerAccountName,
 		event.RequestID, signature, app.BlockChain.EosPubKeys.SigniDice, txOpts)
 
 	if err != nil {
