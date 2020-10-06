@@ -49,6 +49,7 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 		BlockChainConfig{
 			eos.Checksum256(chainID),
 			casinoAccName,
+			casinoAccName,
 			PubKeys{pubKeys[0], pubKeys[1]},
 			rsaKey,
 			platformAccName,
@@ -127,7 +128,7 @@ func TestSignidiceAction(t *testing.T) {
 	assert.Equal(eos.AN("gamesc"), action.Account)
 	assert.Equal(eos.ActionName("sgdicesecond"), action.Name)
 	assert.Equal([]eos.PermissionLevel{
-		{Actor: eos.AN("onecasino"), Permission: eos.PN("signidice")},
+		{Actor: eos.AN("onecasino"), Permission: eos.PN("active")},
 	},
 		action.Authorization)
 	assert.Equal(eos.NewActionData(Signidice{RequestID: 42, Signature: "casinosig"}), action.ActionData)
