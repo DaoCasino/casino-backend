@@ -29,6 +29,7 @@ const (
 	EosInternalErrorCode = 500 // internal error HTTP code
 	// see: https://github.com/DaoCasino/DAObet/blob/master/libraries/chain/include/eosio/chain/exceptions.hpp
 	EosInternalDuplicateErrorCode = 3040008
+	ServiceName                   = "casino"
 )
 
 type ResponseWriter = http.ResponseWriter
@@ -263,6 +264,14 @@ func (app *App) PingQuery(writer ResponseWriter, req *Request) {
 	respondWithJSON(writer, http.StatusOK, JSONResponse{"result": "pong"})
 }
 
+func (app *App) WhoQuery(writer ResponseWriter, req *Request) {
+	writer.WriteHeader(http.StatusOK)
+	_, err := writer.Write([]byte(ServiceName))
+	if err != nil {
+		log.Warn().Msg("Failed to respond to client")
+	}
+}
+
 func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	log.Info().Msg("Called /sign_transaction")
 	start := time.Now()
@@ -315,6 +324,7 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 func (app *App) GetRouter() *mux.Router {
 	var router mux.Router
 	router.HandleFunc("/ping", app.PingQuery).Methods("GET")
+	router.HandleFunc("/who", app.WhoQuery).Methods("GET")
 	router.HandleFunc("/sign_transaction", app.SignQuery).Methods("POST")
 	router.Handle("/metrics", metrics.GetHandler())
 	return &router
