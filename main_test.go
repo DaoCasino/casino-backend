@@ -175,6 +175,13 @@ func TestValidateTransaction(t *testing.T) {
 			{Actor: eos.AN(platformAccName), Permission: eos.PN("gameaction")},
 		},
 	}
+	newGameAfflAction := &eos.Action{
+		Account: eos.AN("dice"),
+		Name:    eos.ActN("newgameaffl"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: eos.AN(platformAccName), Permission: eos.PN("gameaction")},
+		},
+	}
 	gameActionAction := &eos.Action{
 		Account: eos.AN("dice"),
 		Name:    eos.ActN("gameaction"),
@@ -258,4 +265,13 @@ func TestValidateTransaction(t *testing.T) {
 		a.BlockChain.PlatformPubKey,
 		eos.Checksum256(chainID)),
 		fmt.Errorf("first action should be newgame, second gameaction"))
+
+	// {transfer, newgameaffl} valid
+	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAfflAction}, nil))
+	signedTxn, err = keyBag.Sign(&txn, eos.Checksum256(chainID), pubKeys[0], pubKeys[1])
+	assert.Nil(err)
+	assert.Nil(ValidateDepositTransaction(signedTxn,
+		eos.AN(casinoAccName), eos.AN(platformAccName),
+		a.BlockChain.PlatformPubKey,
+		eos.Checksum256(chainID)))
 }

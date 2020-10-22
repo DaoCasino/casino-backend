@@ -138,7 +138,7 @@ func ValidateSignatures(pubKeys []ecc.PublicKey, platformPubKey ecc.PublicKey) e
 }
 
 func isNewGame(action *eos.Action) bool {
-	return action.Name == eos.ActN("newgame")
+	return action.Name == eos.ActN("newgame") || action.Name == eos.ActN("newgameaffl")
 }
 
 func isGameAction(action *eos.Action) bool {
