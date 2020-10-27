@@ -321,11 +321,27 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	respondWithJSON(writer, http.StatusOK, JSONResponse{"txid": trxID.String()})
 }
 
+func (app *App) GetBonusPlayers(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/bonus_players")
+
+	playerStats, err := app.getBonusPlayers()
+	if err != nil {
+		log.Debug().Msgf("failed to get bonus players: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, playerStats)
+}
+
 func (app *App) GetRouter() *mux.Router {
 	var router mux.Router
 	router.HandleFunc("/ping", app.PingQuery).Methods("GET")
 	router.HandleFunc("/who", app.WhoQuery).Methods("GET")
 	router.HandleFunc("/sign_transaction", app.SignQuery).Methods("POST")
 	router.Handle("/metrics", metrics.GetHandler())
+
+	adminRouter := router.PathPrefix("/admin").Subrouter()
+	adminRouter.HandleFunc("/bonus_players", app.GetBonusPlayers).Methods("GET")
+
 	return &router
 }
