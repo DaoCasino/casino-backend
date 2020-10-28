@@ -18,6 +18,7 @@ func (app *App) getBonusPlayers() ([]PlayerStats, error) {
 		Code:  string(app.BlockChain.CasinoAccountName),
 		Scope: string(app.BlockChain.CasinoAccountName),
 		Table: "playerstats",
+		Limit: 0,
 		JSON:  true,
 	})
 	if err != nil {
