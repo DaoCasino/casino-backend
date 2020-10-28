@@ -54,6 +54,7 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 	}
 	appCfg.BlockChain.SignerAccountName = eos.AN(cfg.BlockChain.SigniDiceAccountName)
 	appCfg.BlockChain.CasinoAccountName = eos.AN(cfg.BlockChain.CasinoAccountName)
+	appCfg.BlockChain.BonusAdminAccountName = eos.AN(cfg.BlockChain.BonusAdminAccountName)
 	appCfg.BlockChain.EosPubKeys = PubKeys{pubKeys[0], pubKeys[1]}
 	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKey); err != nil {
 		return nil, nil, err

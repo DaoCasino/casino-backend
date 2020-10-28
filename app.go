@@ -47,13 +47,14 @@ type PubKeys struct {
 }
 
 type BlockChainConfig struct {
-	ChainID             eos.Checksum256
-	SignerAccountName   eos.AccountName
-	CasinoAccountName   eos.AccountName
-	EosPubKeys          PubKeys
-	RSAKey              *rsa.PrivateKey
-	PlatformAccountName eos.AccountName
-	PlatformPubKey      ecc.PublicKey
+	ChainID               eos.Checksum256
+	SignerAccountName     eos.AccountName
+	CasinoAccountName     eos.AccountName
+	BonusAdminAccountName eos.AccountName
+	EosPubKeys            PubKeys
+	RSAKey                *rsa.PrivateKey
+	PlatformAccountName   eos.AccountName
+	PlatformPubKey        ecc.PublicKey
 }
 
 type HTTPConfig struct {
@@ -327,10 +328,31 @@ func (app *App) GetBonusPlayers(writer ResponseWriter, req *Request) {
 	playerStats, err := app.getBonusPlayers()
 	if err != nil {
 		log.Debug().Msgf("failed to get bonus players: %s", err.Error())
-		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: "+err.Error())
 	}
 
 	respondWithJSON(writer, http.StatusOK, playerStats)
+}
+
+func (app *App) ConvertBonus(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/convert_bonus")
+
+	convertBonusRequest := struct {
+		Player string `json:"player"`
+		Force  bool   `json:"force"`
+	}{}
+
+	if err := json.NewDecoder(req.Body).Decode(&convertBonusRequest); err != nil {
+		log.Debug().Msgf("failed to decode convert bonus request: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to decode convert bonus request: "+err.Error())
+	}
+
+	if err := app.convertBonus(convertBonusRequest.Player, convertBonusRequest.Force); err != nil {
+		log.Debug().Msgf("failed to convert bonus: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to convert bonus: "+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, nil)
 }
 
 func (app *App) GetRouter() *mux.Router {
@@ -342,6 +364,7 @@ func (app *App) GetRouter() *mux.Router {
 
 	adminRouter := router.PathPrefix("/admin").Subrouter()
 	adminRouter.HandleFunc("/bonus_players", app.GetBonusPlayers).Methods("GET")
+	adminRouter.HandleFunc("/convert_bonus", app.ConvertBonus).Methods("POST")
 
 	return &router
 }
