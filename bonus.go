@@ -59,7 +59,7 @@ func (app *App) convertBonus(player string, force bool) error {
 		Account: app.BlockChain.CasinoAccountName,
 		Name:    eos.ActN("convertbon"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: app.BlockChain.BonusAdminAccountName, Permission: eos.PN("active")},
+			{Actor: app.Bonus.AdminAccountName, Permission: eos.PN("active")},
 		},
 		ActionData: eos.NewActionData(ConvertBonusData{
 			Name: eos.AN(player),

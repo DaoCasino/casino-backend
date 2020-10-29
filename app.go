@@ -47,14 +47,13 @@ type PubKeys struct {
 }
 
 type BlockChainConfig struct {
-	ChainID               eos.Checksum256
-	SignerAccountName     eos.AccountName
-	CasinoAccountName     eos.AccountName
-	BonusAdminAccountName eos.AccountName
-	EosPubKeys            PubKeys
-	RSAKey                *rsa.PrivateKey
-	PlatformAccountName   eos.AccountName
-	PlatformPubKey        ecc.PublicKey
+	ChainID             eos.Checksum256
+	SignerAccountName   eos.AccountName
+	CasinoAccountName   eos.AccountName
+	EosPubKeys          PubKeys
+	RSAKey              *rsa.PrivateKey
+	PlatformAccountName eos.AccountName
+	PlatformPubKey      ecc.PublicKey
 }
 
 type HTTPConfig struct {
@@ -63,10 +62,15 @@ type HTTPConfig struct {
 	Timeout     time.Duration
 }
 
+type BonusConfig struct {
+	AdminAccountName eos.AccountName
+}
+
 type AppConfig struct {
 	Broker     BrokerConfig
 	BlockChain BlockChainConfig
 	HTTP       HTTPConfig
+	Bonus      BonusConfig
 }
 
 type App struct {

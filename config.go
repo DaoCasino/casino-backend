@@ -16,21 +16,23 @@ type Config struct {
 		Token                string
 	}
 	BlockChain struct {
-		DepositKey            string
-		SigniDiceKey          string
-		SigniDiceAccountName  string
-		CasinoAccountName     string
-		BonusAdminAccountName string
-		RSAKey                string
-		URL                   string
-		ChainID               string
-		PlatformAccountName   string
-		PlatformPubKey        string
+		DepositKey           string
+		SigniDiceKey         string
+		SigniDiceAccountName string
+		CasinoAccountName    string
+		RSAKey               string
+		URL                  string
+		ChainID              string
+		PlatformAccountName  string
+		PlatformPubKey       string
 	}
 	HTTP struct {
 		RetryAmount int `default:"3"`
 		RetryDelay  int `default:"1"`
 		Timeout     int `default:"3"`
+	}
+	Bonus struct {
+		AdminAccountName string
 	}
 }
 
