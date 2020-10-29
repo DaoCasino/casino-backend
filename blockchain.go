@@ -192,7 +192,7 @@ func (app *App) PushTransaction(actions []*eos.Action, requiredKeys []ecc.Public
 	trxHexEncoded := trxID.String()
 	if err := SendPackedTrxWithRetries(app.bcAPI, packedTrx, trxHexEncoded,
 		app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay); err != nil {
-		return fmt.Errorf("failed to send convert bonus trx: %w", err)
+		return fmt.Errorf("failed to send trx: %w", err)
 	}
 
 	return nil
