@@ -56,6 +56,9 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 			platformKey.PublicKey(),
 		},
 		HTTPConfig{3, 3 * time.Second, 3 * time.Second},
+		BonusConfig{
+			AdminAccountName: casinoAccName,
+		},
 	}, &keyBag
 }
 
