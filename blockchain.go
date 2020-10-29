@@ -154,11 +154,46 @@ func SendPackedTrxWithRetries(bcAPI *eos.API, packedTrx *eos.PackedTransaction, 
 			if apiErr, ok := e.(eos.APIError); ok {
 				// if error is duplicate trx assume as OK
 				if apiErr.Code == EosInternalErrorCode && apiErr.ErrorStruct.Code == EosInternalDuplicateErrorCode {
-					log.Debug().Msgf("Got duplicate trx error, assuming as OK, trx_id: %s", trxID)
+					log.Debug().Msgf("Got duplicateK trx error, assuming as OK, trx_id: %s", trxID)
 					return nil
 				}
 			}
 		}
 		return e
 	}, retries, timeout, retryDelay)
+}
+
+func (app *App) PushTransaction(actions []*eos.Action, requiredKeys []ecc.PublicKey) error {
+	var txOpts *eos.TxOptions
+	if err := utils.RetryWithTimeout(func() error {
+		var e error
+		txOpts, e = app.getTxOpts()
+		return e
+	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay); err != nil {
+		return fmt.Errorf("failed to get blockchain state: %w", err)
+	}
+
+	tx := eos.NewSignedTransaction(eos.NewTransaction(actions, txOpts))
+	signedTx, err := app.bcAPI.Signer.Sign(tx, txOpts.ChainID, requiredKeys...)
+	if err != nil {
+		return fmt.Errorf("failed to sign trx: %w", err)
+	}
+	log.Debug().Msg(signedTx.String())
+
+	packedTrx, err := tx.Pack(eos.CompressionNone)
+	if err != nil {
+		return fmt.Errorf("failed to pack trx: %w", err)
+	}
+
+	trxID, err := packedTrx.ID()
+	if err != nil {
+		return fmt.Errorf("failed to calc trx ID: %w", err)
+	}
+	trxHexEncoded := trxID.String()
+	if err := SendPackedTrxWithRetries(app.bcAPI, packedTrx, trxHexEncoded,
+		app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay); err != nil {
+		return fmt.Errorf("failed to send convert bonus trx: %w", err)
+	}
+
+	return nil
 }

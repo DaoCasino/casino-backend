@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/DaoCasino/casino-backend/utils"
 	"github.com/eoscanada/eos-go"
-	"github.com/rs/zerolog/log"
+	"github.com/eoscanada/eos-go/ecc"
 	"strconv"
 )
 
@@ -56,15 +55,6 @@ func (app *App) convertBonus(player string, force bool) error {
 		}
 	}
 
-	var txOpts *eos.TxOptions
-	if err := utils.RetryWithTimeout(func() error {
-		var e error
-		txOpts, e = app.getTxOpts()
-		return e
-	}, app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay); err != nil {
-		return fmt.Errorf("failed to get blockchain state: %w", err)
-	}
-
 	action := &eos.Action{
 		Account: app.BlockChain.CasinoAccountName,
 		Name:    eos.ActN("convertbon"),
@@ -77,26 +67,8 @@ func (app *App) convertBonus(player string, force bool) error {
 		}),
 	}
 
-	tx := eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{action}, txOpts))
-	signedTx, err := app.bcAPI.Signer.Sign(tx, txOpts.ChainID, app.BlockChain.EosPubKeys.SigniDice)
-	if err != nil {
-		return fmt.Errorf("failed to sign trx: %w", err)
-	}
-	log.Debug().Msg(signedTx.String())
-
-	packedTrx, err := tx.Pack(eos.CompressionNone)
-	if err != nil {
-		return fmt.Errorf("failed to pack trx: %w", err)
-	}
-
-	trxID, err := packedTrx.ID()
-	if err != nil {
-		return fmt.Errorf("failed to calc trx ID: %w", err)
-	}
-	trxHexEncoded := trxID.String()
-	if err := SendPackedTrxWithRetries(app.bcAPI, packedTrx, trxHexEncoded,
-		app.HTTP.RetryAmount, app.HTTP.Timeout, app.HTTP.RetryDelay); err != nil {
-		return fmt.Errorf("failed to send convert bonus trx: %w", err)
+	if err := app.PushTransaction([]*eos.Action{action}, []ecc.PublicKey{app.BlockChain.EosPubKeys.SigniDice}); err != nil {
+		return fmt.Errorf("failed to push transaction: %w", err)
 	}
 
 	return nil
