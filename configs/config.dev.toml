@@ -11,6 +11,7 @@ token = "secretToken"
 [blockchain]
 depositkey = "5Jx1vdKxdmeFbdqFuKMRLanHVy8jgVnSXDAiP3AKheympfCkC6H"
 signidicekey = "5KVV7UwoBYpqV6z5XxrUgfADqQZxT2xC8x5PGg9zLJ7998Qxv8V"
+bonusadminkey = "bonuskey"
 signidiceAccountName = "daocasinoxxx"
 casinoAccountName = "daocasinoxxx"
 url = "https://api.daobet.org"

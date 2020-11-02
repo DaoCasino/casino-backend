@@ -18,6 +18,7 @@ type Config struct {
 	BlockChain struct {
 		DepositKey           string
 		SigniDiceKey         string
+		BonusAdminKey        string
 		SigniDiceAccountName string
 		CasinoAccountName    string
 		RSAKey               string

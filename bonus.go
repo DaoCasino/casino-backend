@@ -67,7 +67,7 @@ func (app *App) convertBonus(player string, force bool) error {
 		}),
 	}
 
-	if err := app.PushTransaction([]*eos.Action{action}, []ecc.PublicKey{app.BlockChain.EosPubKeys.SigniDice}); err != nil {
+	if err := app.PushTransaction([]*eos.Action{action}, []ecc.PublicKey{app.BlockChain.EosPubKeys.BonusAdmin}); err != nil {
 		return fmt.Errorf("failed to push transaction: %w", err)
 	}
 

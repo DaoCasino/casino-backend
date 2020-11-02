@@ -42,8 +42,9 @@ type BrokerConfig struct {
 }
 
 type PubKeys struct {
-	Deposit   ecc.PublicKey
-	SigniDice ecc.PublicKey
+	Deposit    ecc.PublicKey
+	SigniDice  ecc.PublicKey
+	BonusAdmin ecc.PublicKey
 }
 
 type BlockChainConfig struct {
