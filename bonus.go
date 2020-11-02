@@ -21,6 +21,14 @@ type ConvertBonusData struct {
 	Memo string          `json:"memo"`
 }
 
+type AddGameNoBonusData struct {
+	GameAccount eos.AccountName `json:"game_account"`
+}
+
+type RemoveGameNoBonusData struct {
+	GameAccount eos.AccountName `json:"game_account"`
+}
+
 func (app *App) getBonusPlayers() ([]PlayerStats, error) {
 	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
 		Code:  string(app.BlockChain.CasinoAccountName),
@@ -97,4 +105,42 @@ func (app *App) meetRequirements(player string) (bool, error) {
 	// TODO check requirements
 
 	return true, nil
+}
+
+func (app *App) addGameNoBonus(game string) error {
+	action := &eos.Action{
+		Account: app.BlockChain.CasinoAccountName,
+		Name:    eos.ActN("addgamenobon"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: app.Bonus.AdminAccountName, Permission: eos.PN("active")},
+		},
+		ActionData: eos.NewActionData(AddGameNoBonusData{
+			GameAccount: eos.AN(game),
+		}),
+	}
+
+	if err := app.PushTransaction([]*eos.Action{action}, []ecc.PublicKey{app.BlockChain.EosPubKeys.BonusAdmin}); err != nil {
+		return fmt.Errorf("failed to push transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (app *App) removeGameNoBonus(game string) error {
+	action := &eos.Action{
+		Account: app.BlockChain.CasinoAccountName,
+		Name:    eos.ActN("rmgamenobon"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: app.Bonus.AdminAccountName, Permission: eos.PN("active")},
+		},
+		ActionData: eos.NewActionData(RemoveGameNoBonusData{
+			GameAccount: eos.AN(game),
+		}),
+	}
+
+	if err := app.PushTransaction([]*eos.Action{action}, []ecc.PublicKey{app.BlockChain.EosPubKeys.BonusAdmin}); err != nil {
+		return fmt.Errorf("failed to push transaction: %w", err)
+	}
+
+	return nil
 }
