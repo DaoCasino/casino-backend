@@ -2,9 +2,14 @@ package utils
 
 import (
 	"fmt"
+	"github.com/eoscanada/eos-go"
 	"time"
 
 	"github.com/rs/zerolog/log"
+)
+
+const (
+	DAOBetAssetSymbol = "BET"
 )
 
 func WithTimeout(f func() error, timeout time.Duration) error {
@@ -44,4 +49,12 @@ func RetryWithTimeout(f func() error, n int, timeout, retryDelay time.Duration) 
 		time.Sleep(retryDelay)
 	}
 	return e
+}
+
+func ToBetAsset(amount string) (*eos.Asset, error) {
+	quantity, err := eos.NewFixedSymbolAssetFromString(eos.Symbol{Precision: 4, Symbol: DAOBetAssetSymbol}, amount)
+	if err != nil {
+		return nil, err
+	}
+	return &quantity, nil
 }
