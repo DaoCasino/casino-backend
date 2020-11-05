@@ -27,6 +27,7 @@ const (
 	bcURL           = "localhost:8888"
 	depositPk       = "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAbuatmU"
 	signiDicePk     = "5KXQYCyytPBsKoymLuDjmg1MdqeSUmFRiczGe67HdWdvuBggKyS"
+	bonusAdminPk    = "5KXQYCyytPBsKoymLuDjmg1MdqeSUmFRiczGe67HdWdvuBggKyS"
 	chainID         = "cda75f235aef76ad91ef0503421514d80d8dbb584cd07178022f0bc7deb964ff"
 	casinoAccName   = "daocasinoxxx"
 	platformAccName = "platform"
@@ -50,7 +51,7 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 			eos.Checksum256(chainID),
 			casinoAccName,
 			casinoAccName,
-			PubKeys{pubKeys[0], pubKeys[1]},
+			PubKeys{pubKeys[0], pubKeys[1], pubKeys[2]},
 			rsaKey,
 			platformAccName,
 			platformKey.PublicKey(),
