@@ -321,10 +321,22 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	respondWithJSON(writer, http.StatusOK, JSONResponse{"txid": trxID.String()})
 }
 
-func (app *App) GetBonusPlayers(writer ResponseWriter, req *Request) {
-	log.Info().Msg("Called /admin/bonus_players")
+func (app *App) GetBonusPlayersStats(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/bonus_players_stats")
 
-	playerStats, err := app.getBonusPlayers()
+	playerStats, err := app.getBonusPlayersStats()
+	if err != nil {
+		log.Debug().Msgf("failed to get bonus players: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, playerStats)
+}
+
+func (app *App) GetBonusPlayersBalance(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/bonus_players_balance")
+
+	playerStats, err := app.getBonusPlayersBalance()
 	if err != nil {
 		log.Debug().Msgf("failed to get bonus players: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
@@ -341,7 +353,8 @@ func (app *App) GetRouter() *mux.Router {
 	router.Handle("/metrics", metrics.GetHandler())
 
 	adminRouter := router.PathPrefix("/admin").Subrouter()
-	adminRouter.HandleFunc("/bonus_players", app.GetBonusPlayers).Methods("GET")
+	adminRouter.HandleFunc("/bonus_players_stats", app.GetBonusPlayersStats).Methods("GET")
+	adminRouter.HandleFunc("/bonus_players_balance", app.GetBonusPlayersBalance).Methods("GET")
 
 	return &router
 }

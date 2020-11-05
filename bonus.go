@@ -13,7 +13,12 @@ type PlayerStats struct {
 	ProfitBonus     eos.Asset `json:"profit_bonus"`
 }
 
-func (app *App) getBonusPlayers() ([]PlayerStats, error) {
+type PlayerBalance struct {
+	Player  string    `json:"player"`
+	Balance eos.Asset `json:"balance"`
+}
+
+func (app *App) getBonusPlayersStats() ([]PlayerStats, error) {
 	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
 		Code:  string(app.BlockChain.CasinoAccountName),
 		Scope: string(app.BlockChain.CasinoAccountName),
@@ -33,4 +38,26 @@ func (app *App) getBonusPlayers() ([]PlayerStats, error) {
 	}
 
 	return playerStats, nil
+}
+
+func (app *App) getBonusPlayersBalance() ([]PlayerBalance, error) {
+	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
+		Code:  string(app.BlockChain.CasinoAccountName),
+		Scope: string(app.BlockChain.CasinoAccountName),
+		Table: "bonusbalance",
+		Limit: 0,
+		JSON:  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var playersBalance []PlayerBalance
+
+	err = resp.JSONToStructs(&playersBalance)
+	if err != nil {
+		return nil, err
+	}
+
+	return playersBalance, nil
 }
