@@ -42,6 +42,9 @@ func MakeTestConfig() (*AppConfig, *eos.KeyBag) {
 	if err := keyBag.Add(signiDicePk); err != nil {
 		panic(err)
 	}
+	if err := keyBag.Add(bonusAdminPk); err != nil {
+		panic(err)
+	}
 	pubKeys, _ := keyBag.AvailableKeys()
 	rsaKey, _ := rsa.GenerateKey(rand.Reader, 1024)
 	platformKey, _ := ecc.NewPrivateKey(platformPk)

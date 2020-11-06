@@ -392,7 +392,7 @@ func (app *App) RemoveGameNoBonus(writer ResponseWriter, req *Request) {
 		respondWithError(writer, http.StatusInternalServerError, "failed to decode remove game no bonus request: "+err.Error())
 	}
 
-	if err := app.addGameNoBonus(rmGameNoBonusRequest.GameAccount); err != nil {
+	if err := app.removeGameNoBonus(rmGameNoBonusRequest.GameAccount); err != nil {
 		log.Debug().Msgf("failed to remove game no bonus: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to remove game no bonus: "+err.Error())
 	}
