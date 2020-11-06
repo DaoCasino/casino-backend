@@ -203,16 +203,16 @@ func isInvariantAllowed(invariant []string) bool {
 			continue
 		}
 
-		isBreak := false
+		matches := true
 
 		for i := range inv {
 			if inv[i] != invariant[i] {
-				isBreak = true
+				matches = false
 				break
 			}
 		}
 
-		if !isBreak {
+		if matches {
 			return true
 		}
 	}
