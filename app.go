@@ -326,7 +326,7 @@ func (app *App) GetBonusPlayersStats(writer ResponseWriter, req *Request) {
 
 	playerStats, err := app.getBonusPlayersStats()
 	if err != nil {
-		log.Debug().Msgf("failed to get bonus players: %s", err.Error())
+		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
 	}
 
@@ -338,7 +338,7 @@ func (app *App) GetBonusPlayersBalance(writer ResponseWriter, req *Request) {
 
 	playerStats, err := app.getBonusPlayersBalance()
 	if err != nil {
-		log.Debug().Msgf("failed to get bonus players: %s", err.Error())
+		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
 	}
 
