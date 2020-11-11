@@ -154,7 +154,7 @@ func SendPackedTrxWithRetries(bcAPI *eos.API, packedTrx *eos.PackedTransaction, 
 			if apiErr, ok := e.(eos.APIError); ok {
 				// if error is duplicate trx assume as OK
 				if apiErr.Code == EosInternalErrorCode && apiErr.ErrorStruct.Code == EosInternalDuplicateErrorCode {
-					log.Debug().Msgf("Got duplicateK trx error, assuming as OK, trx_id: %s", trxID)
+					log.Debug().Msgf("Got duplicate trx error, assuming as OK, trx_id: %s", trxID)
 					return nil
 				}
 			}

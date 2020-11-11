@@ -45,7 +45,7 @@ func (app *App) getBonusPlayers() ([]PlayerStats, error) {
 
 func (app *App) convertBonus(player string, force bool) error {
 	if !force {
-		meetRequirements, err := app.meetRequirements(player)
+		meetRequirements, err := PlayerMeetRequirements(player, app.BlockChain.CasinoAccountName, app.bcAPI)
 		if err != nil {
 			return fmt.Errorf("failed to check player meet requirements: %w", err)
 		}
@@ -74,10 +74,10 @@ func (app *App) convertBonus(player string, force bool) error {
 	return nil
 }
 
-func (app *App) meetRequirements(player string) (bool, error) {
-	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
-		Code:       string(app.BlockChain.CasinoAccountName),
-		Scope:      string(app.BlockChain.CasinoAccountName),
+func PlayerMeetRequirements(player string, casino eos.AccountName, bcAPI *eos.API) (bool, error) {
+	resp, err := bcAPI.GetTableRows(eos.GetTableRowsRequest{
+		Code:       string(casino),
+		Scope:      string(casino),
 		Table:      "playerstats",
 		LowerBound: strconv.FormatUint(eos.MustStringToName(player), 10),
 		Limit:      1,
