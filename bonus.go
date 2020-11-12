@@ -16,18 +16,24 @@ type PlayerStats struct {
 	ProfitBonus     eos.Asset `json:"profit_bonus"`
 }
 
+type PlayerBalance struct {
+	Player  string    `json:"player"`
+	Balance eos.Asset `json:"balance"`
+}
+
 type ConvertBonusData struct {
 	Name eos.AccountName `json:"name"`
 	Memo string          `json:"memo"`
 }
 
-func (app *App) getBonusPlayers() ([]PlayerStats, error) {
+func (app *App) getBonusPlayersStats(lastPlayer string) ([]PlayerStats, error) {
 	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
-		Code:  string(app.BlockChain.CasinoAccountName),
-		Scope: string(app.BlockChain.CasinoAccountName),
-		Table: "playerstats",
-		Limit: 0,
-		JSON:  true,
+		Code:       string(app.BlockChain.CasinoAccountName),
+		Scope:      string(app.BlockChain.CasinoAccountName),
+		Table:      "playerstats",
+		LowerBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
+		Limit:      100,
+		JSON:       true,
 	})
 	if err != nil {
 		return nil, err
@@ -41,6 +47,37 @@ func (app *App) getBonusPlayers() ([]PlayerStats, error) {
 	}
 
 	return playerStats, nil
+}
+
+func (app *App) getBonusPlayersBalance(lastPlayer string) ([]PlayerBalance, error) {
+	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
+		Code:       string(app.BlockChain.CasinoAccountName),
+		Scope:      string(app.BlockChain.CasinoAccountName),
+		LowerBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
+		Table:      "bonusbalance",
+		Limit:      100,
+		JSON:       true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var playersBalance []PlayerBalance
+
+	err = resp.JSONToStructs(&playersBalance)
+	if err != nil {
+		return nil, err
+	}
+
+	return playersBalance, nil
+}
+
+func nextPlayer(player string) uint64 {
+	if player == "" {
+		return 0
+	}
+
+	return eos.MustStringToName(player) + 1
 }
 
 func (app *App) convertBonus(player string, force bool) error {
