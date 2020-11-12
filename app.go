@@ -322,9 +322,16 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 }
 
 func (app *App) GetBonusPlayersStats(writer ResponseWriter, req *Request) {
-	log.Info().Msg("Called /admin/bonus_players_stats")
+	log.Info().Msg("Called /admin/bonus_players/stats")
 
-	playerStats, err := app.getBonusPlayersStats()
+	lastPlayer := ""
+	keys, ok := req.URL.Query()["last_player"]
+	if ok && len(keys) > 0 {
+		lastPlayer = keys[0]
+	}
+
+	playerStats, err := app.getBonusPlayersStats(lastPlayer)
+
 	if err != nil {
 		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
@@ -334,9 +341,15 @@ func (app *App) GetBonusPlayersStats(writer ResponseWriter, req *Request) {
 }
 
 func (app *App) GetBonusPlayersBalance(writer ResponseWriter, req *Request) {
-	log.Info().Msg("Called /admin/bonus_players_balance")
+	log.Info().Msg("Called /admin/bonus_players/balance")
 
-	playerStats, err := app.getBonusPlayersBalance()
+	last_player := ""
+	keys, ok := req.URL.Query()["last_player"]
+	if ok && len(keys) > 0 {
+		last_player = keys[0]
+	}
+
+	playerStats, err := app.getBonusPlayersBalance(last_player)
 	if err != nil {
 		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
@@ -353,8 +366,8 @@ func (app *App) GetRouter() *mux.Router {
 	router.Handle("/metrics", metrics.GetHandler())
 
 	adminRouter := router.PathPrefix("/admin").Subrouter()
-	adminRouter.HandleFunc("/bonus_players_stats", app.GetBonusPlayersStats).Methods("GET")
-	adminRouter.HandleFunc("/bonus_players_balance", app.GetBonusPlayersBalance).Methods("GET")
+	adminRouter.HandleFunc("/bonus_players/stats", app.GetBonusPlayersStats).Methods("GET")
+	adminRouter.HandleFunc("/bonus_players/balance", app.GetBonusPlayersBalance).Methods("GET")
 
 	return &router
 }

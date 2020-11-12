@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/eoscanada/eos-go"
+	"strconv"
 )
 
 type PlayerStats struct {
@@ -18,13 +19,14 @@ type PlayerBalance struct {
 	Balance eos.Asset `json:"balance"`
 }
 
-func (app *App) getBonusPlayersStats() ([]PlayerStats, error) {
+func (app *App) getBonusPlayersStats(lastPlayer string) ([]PlayerStats, error) {
 	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
-		Code:  string(app.BlockChain.CasinoAccountName),
-		Scope: string(app.BlockChain.CasinoAccountName),
-		Table: "playerstats",
-		Limit: 0,
-		JSON:  true,
+		Code:       string(app.BlockChain.CasinoAccountName),
+		Scope:      string(app.BlockChain.CasinoAccountName),
+		Table:      "playerstats",
+		LowerBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
+		Limit:      100,
+		JSON:       true,
 	})
 	if err != nil {
 		return nil, err
@@ -40,13 +42,14 @@ func (app *App) getBonusPlayersStats() ([]PlayerStats, error) {
 	return playerStats, nil
 }
 
-func (app *App) getBonusPlayersBalance() ([]PlayerBalance, error) {
+func (app *App) getBonusPlayersBalance(lastPlayer string) ([]PlayerBalance, error) {
 	resp, err := app.bcAPI.GetTableRows(eos.GetTableRowsRequest{
-		Code:  string(app.BlockChain.CasinoAccountName),
-		Scope: string(app.BlockChain.CasinoAccountName),
-		Table: "bonusbalance",
-		Limit: 0,
-		JSON:  true,
+		Code:       string(app.BlockChain.CasinoAccountName),
+		Scope:      string(app.BlockChain.CasinoAccountName),
+		LowerBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
+		Table:      "bonusbalance",
+		Limit:      100,
+		JSON:       true,
 	})
 	if err != nil {
 		return nil, err
@@ -60,4 +63,12 @@ func (app *App) getBonusPlayersBalance() ([]PlayerBalance, error) {
 	}
 
 	return playersBalance, nil
+}
+
+func nextPlayer(player string) uint64 {
+	if player == "" {
+		return 0
+	}
+
+	return eos.MustStringToName(player) + 1
 }
