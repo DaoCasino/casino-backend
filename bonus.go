@@ -32,6 +32,7 @@ func (app *App) getBonusPlayersStats(lastPlayer string) ([]PlayerStats, error) {
 		Scope:      string(app.BlockChain.CasinoAccountName),
 		Table:      "playerstats",
 		LowerBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
+		UpperBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
 		Limit:      100,
 		JSON:       true,
 	})
