@@ -32,7 +32,6 @@ func (app *App) getBonusPlayersStats(lastPlayer string) ([]PlayerStats, error) {
 		Scope:      string(app.BlockChain.CasinoAccountName),
 		Table:      "playerstats",
 		LowerBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
-		UpperBound: strconv.FormatUint(nextPlayer(lastPlayer), 10),
 		Limit:      100,
 		JSON:       true,
 	})
@@ -118,6 +117,7 @@ func PlayerMeetRequirements(player string, casino eos.AccountName, bcAPI *eos.AP
 		Scope:      string(casino),
 		Table:      "playerstats",
 		LowerBound: strconv.FormatUint(eos.MustStringToName(player), 10),
+		UpperBound: strconv.FormatUint(eos.MustStringToName(player), 10),
 		Limit:      1,
 		JSON:       true,
 	})
