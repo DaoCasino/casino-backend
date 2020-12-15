@@ -321,11 +321,53 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	respondWithJSON(writer, http.StatusOK, JSONResponse{"txid": trxID.String()})
 }
 
+func (app *App) GetBonusPlayersStats(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/bonus_players/stats")
+
+	lastPlayer := ""
+	keys, ok := req.URL.Query()["last_player"]
+	if ok && len(keys) > 0 {
+		lastPlayer = keys[0]
+	}
+
+	playerStats, err := app.getBonusPlayersStats(lastPlayer)
+
+	if err != nil {
+		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, playerStats)
+}
+
+func (app *App) GetBonusPlayersBalance(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/bonus_players/balance")
+
+	last_player := ""
+	keys, ok := req.URL.Query()["last_player"]
+	if ok && len(keys) > 0 {
+		last_player = keys[0]
+	}
+
+	playerStats, err := app.getBonusPlayersBalance(last_player)
+	if err != nil {
+		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, playerStats)
+}
+
 func (app *App) GetRouter() *mux.Router {
 	var router mux.Router
 	router.HandleFunc("/ping", app.PingQuery).Methods("GET")
 	router.HandleFunc("/who", app.WhoQuery).Methods("GET")
 	router.HandleFunc("/sign_transaction", app.SignQuery).Methods("POST")
 	router.Handle("/metrics", metrics.GetHandler())
+
+	adminRouter := router.PathPrefix("/admin").Subrouter()
+	adminRouter.HandleFunc("/bonus_players/stats", app.GetBonusPlayersStats).Methods("GET")
+	adminRouter.HandleFunc("/bonus_players/balance", app.GetBonusPlayersBalance).Methods("GET")
+
 	return &router
 }
