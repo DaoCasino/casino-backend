@@ -287,9 +287,11 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 		respondWithError(writer, http.StatusBadRequest, "failed to deserialize transaction")
 		return
 	}
+	tokenToContract, err := GetTokenToContract(app.bcAPI, app.BlockChain.PlatformAccountName)
 	if err := ValidateDepositTransaction(tx, app.BlockChain.CasinoAccountName, app.BlockChain.PlatformAccountName,
 		app.BlockChain.PlatformPubKey,
-		app.BlockChain.ChainID); err != nil {
+		app.BlockChain.ChainID,
+		tokenToContract); err != nil {
 		log.Debug().Msgf("invalid transaction supplied, reason: %s", err.Error())
 		respondWithError(writer, http.StatusBadRequest, "invalid transaction supplied")
 		return

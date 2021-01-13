@@ -60,6 +60,31 @@ func GetSigndiceTransaction(
 	return tx.Pack(eos.CompressionNone)
 }
 
+func GetTokenToContract(bcAPI *eos.API, platformContract eos.AccountName) (map[string]eos.AccountName, error) {
+	// TODO cache the response
+	resp, err := bcAPI.GetTableRows(eos.GetTableRowsRequest{
+		Code:  string(platformContract),
+		Scope: string(platformContract),
+		Table: "token",
+		JSON:  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var jsonTokenContract []struct {
+		TokenName string          `json:"token_name"`
+		Contract  eos.AccountName `json:"contract"`
+	}
+	if err := resp.JSONToStructs(&jsonTokenContract); err != nil {
+		return nil, err
+	}
+	tokenContracts := make(map[string]eos.AccountName)
+	for _, tc := range jsonTokenContract {
+		tokenContracts[tc.TokenName] = tc.Contract
+	}
+	return tokenContracts, nil
+}
+
 // allowed only 7 invariants: {transfer, newgame}, {transfer, newgame, gameaction}, {transfer, gameaction},
 // {transfer, newgamebon, gameaction}, {newgamebon, gameaction}, {transfer, depositbon, gameaction},
 // {depositbon, gameaction}
@@ -68,7 +93,8 @@ func ValidateDepositTransaction(
 	tx *eos.SignedTransaction,
 	casinoName, platformName eos.AccountName,
 	platformPubKey ecc.PublicKey,
-	chainID eos.Checksum256) error {
+	chainID eos.Checksum256,
+	tokenToContract map[string]eos.AccountName) error {
 	if len(tx.Actions) != 2 && len(tx.Actions) != 3 {
 		return fmt.Errorf("invalid actions size")
 	}
@@ -86,7 +112,7 @@ func ValidateDepositTransaction(
 
 	for i, name := range invariant {
 		if name == "transfer" {
-			if err := ValidateTransferAction(tx.Actions[i], casinoName); err != nil {
+			if err := ValidateTransferAction(tx.Actions[i], casinoName, tokenToContract); err != nil {
 				return err
 			}
 		} else {
@@ -107,9 +133,19 @@ func ValidateDepositTransaction(
 	return nil
 }
 
-func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName) error {
+func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName,
+	tokenToContract map[string]eos.AccountName) error {
 	if action.Account != eos.AN("eosio.token") {
-		return fmt.Errorf("invalid contract name in transfer action")
+		match := false
+		for _, v := range tokenToContract {
+			if action.Account == v {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return fmt.Errorf("invalid contract name in transfer action")
+		}
 	}
 	if action.Name != eos.ActN("transfer") {
 		return fmt.Errorf("invalid action name in transfer action")
