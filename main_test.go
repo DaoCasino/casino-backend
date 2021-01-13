@@ -203,8 +203,8 @@ func TestValidateTransaction(t *testing.T) {
 			{Actor: eos.AN(platformAccName), Permission: eos.PN("gameaction")},
 		},
 	}
-	assert.Nil(ValidateTransferAction(transferAction, eos.AN(casinoAccName)))
-	assert.Equal(ValidateTransferAction(transferAction, eos.AN("onebet")),
+	assert.Nil(ValidateTransferAction(transferAction, eos.AN(casinoAccName), nil))
+	assert.Equal(ValidateTransferAction(transferAction, eos.AN("onebet"), nil),
 		fmt.Errorf("invalid permission in transfer action"))
 	assert.Nil(ValidateGameActionAuth(newGameAction, eos.AN(platformAccName)))
 	assert.Equal(ValidateGameActionAuth(newGameAction, eos.AN("buggyplatform")),
@@ -221,7 +221,8 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID),
+		nil))
 
 	// {transfer, newgame} invalid keys
 	nonPlatformTxn, err := keyBag.Sign(&origTxn, eos.Checksum256(chainID), pubKeys[0], pubKeys[2])
@@ -229,7 +230,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Equal(ValidateDepositTransaction(nonPlatformTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)),
+		eos.Checksum256(chainID), nil),
 		fmt.Errorf("platform pub key not found in deposit txn"))
 
 	// {transfer, gameaction} ok
@@ -239,7 +240,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID), nil), nil)
 
 	// {transfer, newgame, gameaction} ok
 	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction, gameActionAction}, nil))
@@ -248,7 +249,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID), nil))
 
 	// {transfer, newgame, newgame} invalid
 	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameAction, newGameAction}, nil))
@@ -257,7 +258,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Equal(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)),
+		eos.Checksum256(chainID), nil),
 		fmt.Errorf("incorrect tx actions"))
 
 	// {transfer, gameaction, newgame} invalid
@@ -267,7 +268,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Equal(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)),
+		eos.Checksum256(chainID), nil),
 		fmt.Errorf("incorrect tx actions"))
 
 	// {transfer, gameaction, gameaction} invalid
@@ -277,7 +278,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Equal(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)),
+		eos.Checksum256(chainID), nil),
 		fmt.Errorf("incorrect tx actions"))
 
 	// {transfer, newgameaffl} valid
@@ -287,7 +288,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID), nil))
 
 	// {newgamebon, gameaction} valid
 	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{newGameBonAction, gameActionAction}, nil))
@@ -296,7 +297,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID), nil))
 
 	// {transfer, newgamebon, gameaction} valid
 	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, newGameBonAction, gameActionAction}, nil))
@@ -305,7 +306,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID), nil))
 
 	// {depositbon, gameaction} valid
 	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{depositBonAction, gameActionAction}, nil))
@@ -314,7 +315,7 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID), nil))
 
 	// {transfer, depositbon, gameaction} valid
 	txn = *eos.NewSignedTransaction(eos.NewTransaction([]*eos.Action{transferAction, depositBonAction, gameActionAction}, nil))
@@ -323,5 +324,26 @@ func TestValidateTransaction(t *testing.T) {
 	assert.Nil(ValidateDepositTransaction(signedTxn,
 		eos.AN(casinoAccName), eos.AN(platformAccName),
 		a.BlockChain.PlatformPubKey,
-		eos.Checksum256(chainID)))
+		eos.Checksum256(chainID), nil))
+}
+
+func TestValidateCustomTransferAction(t *testing.T) {
+	assert := assert.New(t)
+	sponsorPk := "5J6wt29qMkX2d22x2dw7QQb2S7A9c9xjrSiA16t6TAwTNqntpi1"
+	keyBag := eos.KeyBag{}
+	err := keyBag.Add(sponsorPk)
+	assert.Nil(err)
+	err = keyBag.Add(platformPk)
+	assert.Nil(err)
+	err = keyBag.Add(signiDicePk)
+	assert.Nil(err)
+	transferAction := &eos.Action{
+		Account: eos.AN("custom.contract"),
+		Name:    eos.ActN("transfer"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: eos.AN("player"), Permission: eos.PN(casinoAccName)},
+		},
+	}
+	tokenToContract := map[string]eos.AccountName{"BTC": eos.AN("custom.contract")}
+	assert.Nil(ValidateTransferAction(transferAction, eos.AN(casinoAccName), tokenToContract))
 }
