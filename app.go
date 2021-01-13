@@ -288,6 +288,11 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 		return
 	}
 	tokenToContract, err := GetTokenToContract(app.bcAPI, app.BlockChain.PlatformAccountName)
+	if err != nil {
+		log.Error().Msgf("failed to get token to contract mapping, reason: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get token to contract mapping")
+		return
+	}
 	if err := ValidateDepositTransaction(tx, app.BlockChain.CasinoAccountName, app.BlockChain.PlatformAccountName,
 		app.BlockChain.PlatformPubKey,
 		app.BlockChain.ChainID,
