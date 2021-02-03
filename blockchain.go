@@ -11,6 +11,18 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	allowedInvariants = [][]string{
+		{"transfer", "newgame"},
+		{"transfer", "newgame", "gameaction"},
+		{"transfer", "gameaction"},
+		{"transfer", "newgamebon", "gameaction"},
+		{"newgamebon", "gameaction"},
+		{"transfer", "depositbon", "gameaction"},
+		{"depositbon", "gameaction"},
+	}
+)
+
 func NewSigndice(contract, signerAccount eos.AccountName, requestID uint64, signature string) *eos.Action {
 	return &eos.Action{
 		Account: contract,
@@ -48,39 +60,65 @@ func GetSigndiceTransaction(
 	return tx.Pack(eos.CompressionNone)
 }
 
-// allowed only 3 invariants: {transfer, newgame}, {transfer, gameaction}, {transfer, newgame, gameaction}
+func GetTokenToContract(bcAPI *eos.API, platformContract eos.AccountName) (map[string]eos.AccountName, error) {
+	// TODO cache the response
+	resp, err := bcAPI.GetTableRows(eos.GetTableRowsRequest{
+		Code:  string(platformContract),
+		Scope: string(platformContract),
+		Table: "token",
+		JSON:  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var jsonTokenContract []struct {
+		TokenName string          `json:"token_name"`
+		Contract  eos.AccountName `json:"contract"`
+	}
+	if err := resp.JSONToStructs(&jsonTokenContract); err != nil {
+		return nil, err
+	}
+	tokenContracts := make(map[string]eos.AccountName)
+	for _, tc := range jsonTokenContract {
+		tokenContracts[tc.TokenName] = tc.Contract
+	}
+	return tokenContracts, nil
+}
+
+// allowed only 7 invariants: {transfer, newgame}, {transfer, newgame, gameaction}, {transfer, gameaction},
+// {transfer, newgamebon, gameaction}, {newgamebon, gameaction}, {transfer, depositbon, gameaction},
+// {depositbon, gameaction}
+
 func ValidateDepositTransaction(
 	tx *eos.SignedTransaction,
 	casinoName, platformName eos.AccountName,
 	platformPubKey ecc.PublicKey,
-	chainID eos.Checksum256) error {
+	chainID eos.Checksum256,
+	tokenToContract map[string]eos.AccountName) error {
 	if len(tx.Actions) != 2 && len(tx.Actions) != 3 {
 		return fmt.Errorf("invalid actions size")
 	}
 
-	transferAction := tx.Actions[0] // first action always is transfer
-	if err := ValidateTransferAction(transferAction, casinoName); err != nil {
+	invariant, err := extractInvariant(tx.Actions)
+	if err != nil {
 		return err
 	}
 
-	// just validate second action authority
-	if err := ValidateGameActionAuth(tx.Actions[1], platformName); err != nil {
-		return err
+	log.Debug().Msgf("%+v", invariant)
+
+	if !isInvariantAllowed(invariant) {
+		return fmt.Errorf("incorrect tx actions")
 	}
 
-	if len(tx.Actions) == 2 { // if newgame or gameaction (1 and 2 invariants)
-		if !isNewGame(tx.Actions[1]) && !isGameAction(tx.Actions[1]) {
-			return fmt.Errorf("allowed only gameaction or newgame")
-		}
-	} else { // if gameaction and newgame at same time (3 invariant)
-		// just validate additional action authority
-		if err := ValidateGameActionAuth(tx.Actions[2], platformName); err != nil {
-			return err
-		}
-
-		// first action should be newgame, second gameaction
-		if !isNewGame(tx.Actions[1]) || !isGameAction(tx.Actions[2]) {
-			return fmt.Errorf("first action should be newgame, second gameaction")
+	for i, name := range invariant {
+		if name == "transfer" {
+			if err := ValidateTransferAction(tx.Actions[i], casinoName, tokenToContract); err != nil {
+				return err
+			}
+		} else {
+			if err := ValidateGameActionAuth(tx.Actions[i], platformName); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -95,9 +133,19 @@ func ValidateDepositTransaction(
 	return nil
 }
 
-func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName) error {
+func ValidateTransferAction(action *eos.Action, casinoName eos.AccountName,
+	tokenToContract map[string]eos.AccountName) error {
 	if action.Account != eos.AN("eosio.token") {
-		return fmt.Errorf("invalid contract name in transfer action")
+		match := false
+		for _, v := range tokenToContract {
+			if action.Account == v {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return fmt.Errorf("invalid contract name in transfer action")
+		}
 	}
 	if action.Name != eos.ActN("transfer") {
 		return fmt.Errorf("invalid action name in transfer action")
@@ -137,12 +185,75 @@ func ValidateSignatures(pubKeys []ecc.PublicKey, platformPubKey ecc.PublicKey) e
 	return fmt.Errorf("platform pub key not found in deposit txn")
 }
 
+func isTransfer(action *eos.Action) bool {
+	return action.Name == eos.ActN("transfer")
+}
+
+func isDepositBon(action *eos.Action) bool {
+	return action.Name == eos.ActN("depositbon")
+}
+
 func isNewGame(action *eos.Action) bool {
-	return action.Name == eos.ActN("newgame")
+	return action.Name == eos.ActN("newgame") || action.Name == eos.ActN("newgameaffl")
+}
+
+func isNewGameBon(action *eos.Action) bool {
+	return action.Name == eos.ActN("newgamebon")
 }
 
 func isGameAction(action *eos.Action) bool {
 	return action.Name == eos.ActN("gameaction")
+}
+
+func getInvariantName(action *eos.Action) (string, error) {
+	switch {
+	case isTransfer(action):
+		return "transfer", nil
+	case isDepositBon(action):
+		return "depositbon", nil
+	case isNewGame(action):
+		return "newgame", nil
+	case isNewGameBon(action):
+		return "newgamebon", nil
+	case isGameAction(action):
+		return "gameaction", nil
+	}
+	return "", fmt.Errorf("action is not allowed")
+}
+
+func extractInvariant(actions []*eos.Action) ([]string, error) {
+	var invariant []string
+	for _, act := range actions {
+		name, err := getInvariantName(act)
+		if err != nil {
+			return nil, err
+		}
+		invariant = append(invariant, name)
+	}
+	return invariant, nil
+}
+
+func isInvariantAllowed(invariant []string) bool {
+	for _, inv := range allowedInvariants {
+		if len(inv) != len(invariant) {
+			continue
+		}
+
+		matches := true
+
+		for i := range inv {
+			if inv[i] != invariant[i] {
+				matches = false
+				break
+			}
+		}
+
+		if matches {
+			return true
+		}
+	}
+
+	return false
 }
 
 func SendPackedTrxWithRetries(bcAPI *eos.API, packedTrx *eos.PackedTransaction, trxID string,
@@ -154,7 +265,7 @@ func SendPackedTrxWithRetries(bcAPI *eos.API, packedTrx *eos.PackedTransaction, 
 			if apiErr, ok := e.(eos.APIError); ok {
 				// if error is duplicate trx assume as OK
 				if apiErr.Code == EosInternalErrorCode && apiErr.ErrorStruct.Code == EosInternalDuplicateErrorCode {
-					log.Debug().Msgf("Got duplicateK trx error, assuming as OK, trx_id: %s", trxID)
+					log.Debug().Msgf("Got duplicate trx error, assuming as OK, trx_id: %s", trxID)
 					return nil
 				}
 			}
