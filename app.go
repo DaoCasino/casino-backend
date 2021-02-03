@@ -380,16 +380,37 @@ func (app *App) ConvertBonus(writer ResponseWriter, req *Request) {
 	}{}
 
 	if err := json.NewDecoder(req.Body).Decode(&convertBonusRequest); err != nil {
-		log.Debug().Msgf("failed to decode convert bonus request: %s", err.Error())
+		log.Warn().Msgf("failed to decode convert bonus request: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to decode convert bonus request: "+err.Error())
 	}
 
 	if err := app.convertBonus(convertBonusRequest.Player, convertBonusRequest.Force); err != nil {
-		log.Debug().Msgf("failed to convert bonus: %s", err.Error())
+		log.Warn().Msgf("failed to convert bonus: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to convert bonus: "+err.Error())
 	}
 
 	respondWithJSON(writer, http.StatusOK, nil)
+}
+
+func (app *App) SendBonus(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/sendbon")
+
+	sendBonusRequest := struct {
+		Player string `json:"player"`
+		Amount string `json:"amount"`
+	}{}
+
+	if err := json.NewDecoder(req.Body).Decode(&sendBonusRequest); err != nil {
+		log.Warn().Msgf("failed to decode send bonus request: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to decode send bonus request: "+err.Error())
+	}
+
+	if err := app.sendBonus(sendBonusRequest.Player, sendBonusRequest.Amount); err != nil {
+		log.Warn().Msgf("failed to send bonus: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to send bonus: "+err.Error())
+  }
+  
+  respondWithJSON(writer, http.StatusOK, nil)
 }
 
 func (app *App) AddGameNoBonus(writer ResponseWriter, req *Request) {
@@ -443,6 +464,7 @@ func (app *App) GetRouter() *mux.Router {
 	adminRouter.HandleFunc("/bonus_players/stats", app.GetBonusPlayersStats).Methods("GET")
 	adminRouter.HandleFunc("/bonus_players/balance", app.GetBonusPlayersBalance).Methods("GET")
 	adminRouter.HandleFunc("/convert_bonus", app.ConvertBonus).Methods("POST")
+	adminRouter.HandleFunc("/sendbon", app.SendBonus).Methods("POST")
 	adminRouter.HandleFunc("/add_game_no_bonus", app.AddGameNoBonus).Methods("POST")
 	adminRouter.HandleFunc("/remove_game_no_bonus", app.RemoveGameNoBonus).Methods("POST")
 

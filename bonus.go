@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/DaoCasino/casino-backend/utils"
 	"github.com/eoscanada/eos-go"
 	"github.com/eoscanada/eos-go/ecc"
 	"strconv"
@@ -24,6 +25,11 @@ type PlayerBalance struct {
 type ConvertBonusData struct {
 	Name eos.AccountName `json:"name"`
 	Memo string          `json:"memo"`
+}
+
+type SendBonusData struct {
+	To     eos.AccountName `json:"to"`
+	Amount eos.Asset       `json:"amount"`
 }
 
 type AddGameNoBonusData struct {
@@ -143,6 +149,31 @@ func PlayerMeetRequirements(player string, casino eos.AccountName, bcAPI *eos.AP
 	// TODO check requirements
 
 	return true, nil
+}
+
+func (app *App) sendBonus(player string, amount string) error {
+	asset, err := utils.ToBetAsset(amount)
+	if err != nil {
+		return fmt.Errorf("failed to cast to asset: %w", err)
+	}
+
+	action := &eos.Action{
+		Account: app.BlockChain.CasinoAccountName,
+		Name:    eos.ActN("sendbon"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: app.Bonus.AdminAccountName, Permission: eos.PN("active")},
+		},
+		ActionData: eos.NewActionData(SendBonusData{
+			To:     eos.AN(player),
+			Amount: *asset,
+    }),
+	}
+  
+  if err := app.PushTransaction([]*eos.Action{action}, []ecc.PublicKey{app.BlockChain.EosPubKeys.BonusAdmin}); err != nil {
+		return fmt.Errorf("failed to push transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (app *App) addGameNoBonus(game string) error {
