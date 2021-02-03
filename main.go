@@ -48,13 +48,16 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 	if err = keyBag.Add(cfg.BlockChain.SigniDiceKey); err != nil {
 		return nil, nil, err
 	}
+	if err = keyBag.Add(cfg.BlockChain.BonusAdminKey); err != nil {
+		return nil, nil, err
+	}
 	pubKeys, err := keyBag.AvailableKeys()
 	if err != nil {
 		return nil, nil, err
 	}
 	appCfg.BlockChain.SignerAccountName = eos.AN(cfg.BlockChain.SigniDiceAccountName)
 	appCfg.BlockChain.CasinoAccountName = eos.AN(cfg.BlockChain.CasinoAccountName)
-	appCfg.BlockChain.EosPubKeys = PubKeys{pubKeys[0], pubKeys[1]}
+	appCfg.BlockChain.EosPubKeys = PubKeys{pubKeys[0], pubKeys[1], pubKeys[2]}
 	if appCfg.BlockChain.RSAKey, err = utils.ReadRsa(cfg.BlockChain.RSAKey); err != nil {
 		return nil, nil, err
 	}
@@ -71,6 +74,10 @@ func MakeAppConfig(cfg *Config) (*AppConfig, *eos.KeyBag, error) {
 	appCfg.HTTP.RetryDelay = time.Duration(cfg.HTTP.RetryDelay) * time.Second
 	appCfg.HTTP.Timeout = time.Duration(cfg.HTTP.Timeout) * time.Second
 	appCfg.HTTP.RetryAmount = cfg.HTTP.RetryAmount
+
+	// set bonus config
+	appCfg.Bonus.AdminAccountName = eos.AN(cfg.Bonus.AdminAccountName)
+
 	return appCfg, keyBag, nil
 }
 

@@ -18,6 +18,7 @@ type Config struct {
 	BlockChain struct {
 		DepositKey           string
 		SigniDiceKey         string
+		BonusAdminKey        string
 		SigniDiceAccountName string
 		CasinoAccountName    string
 		RSAKey               string
@@ -30,6 +31,9 @@ type Config struct {
 		RetryAmount int `default:"3"`
 		RetryDelay  int `default:"1"`
 		Timeout     int `default:"3"`
+	}
+	Bonus struct {
+		AdminAccountName string
 	}
 }
 
