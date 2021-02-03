@@ -105,7 +105,7 @@ func (app *App) getTxOpts() (*eos.TxOptions, error) {
 
 	var info *eos.InfoResp
 
-	if !app.lastGetInfoStamp.IsZero() && time.Now().Add(-GetInfoCacheTTL*time.Second).Before(app.lastGetInfoStamp) {
+	if !app.lastGetInfoStamp.IsZero() && time.Now().Add(-GetInfoCacheTTL * time.Second).Before(app.lastGetInfoStamp) {
 		info = app.lastCachedInfo
 	} else {
 		var err error
@@ -293,9 +293,16 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 		respondWithError(writer, http.StatusBadRequest, "failed to deserialize transaction")
 		return
 	}
+	tokenToContract, err := GetTokenToContract(app.bcAPI, app.BlockChain.PlatformAccountName)
+	if err != nil {
+		log.Error().Msgf("failed to get token to contract mapping, reason: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get token to contract mapping")
+		return
+	}
 	if err := ValidateDepositTransaction(tx, app.BlockChain.CasinoAccountName, app.BlockChain.PlatformAccountName,
 		app.BlockChain.PlatformPubKey,
-		app.BlockChain.ChainID); err != nil {
+		app.BlockChain.ChainID,
+		tokenToContract); err != nil {
 		log.Debug().Msgf("invalid transaction supplied, reason: %s", err.Error())
 		respondWithError(writer, http.StatusBadRequest, "invalid transaction supplied")
 		return
@@ -327,13 +334,38 @@ func (app *App) SignQuery(writer ResponseWriter, req *Request) {
 	respondWithJSON(writer, http.StatusOK, JSONResponse{"txid": trxID.String()})
 }
 
-func (app *App) GetBonusPlayers(writer ResponseWriter, req *Request) {
-	log.Info().Msg("Called /admin/bonus_players")
+func (app *App) GetBonusPlayersStats(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/bonus_players/stats")
 
-	playerStats, err := app.getBonusPlayers()
+	lastPlayer := ""
+	keys, ok := req.URL.Query()["last_player"]
+	if ok && len(keys) > 0 {
+		lastPlayer = keys[0]
+	}
+
+	playerStats, err := app.getBonusPlayersStats(lastPlayer)
+
 	if err != nil {
-		log.Debug().Msgf("failed to get bonus players: %s", err.Error())
-		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: "+err.Error())
+		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, playerStats)
+}
+
+func (app *App) GetBonusPlayersBalance(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/bonus_players/balance")
+
+	last_player := ""
+	keys, ok := req.URL.Query()["last_player"]
+	if ok && len(keys) > 0 {
+		last_player = keys[0]
+	}
+
+	playerStats, err := app.getBonusPlayersBalance(last_player)
+	if err != nil {
+		log.Warn().Msgf("failed to get bonus players: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to get bonus players: %s"+err.Error())
 	}
 
 	respondWithJSON(writer, http.StatusOK, playerStats)
@@ -376,6 +408,46 @@ func (app *App) SendBonus(writer ResponseWriter, req *Request) {
 	if err := app.sendBonus(sendBonusRequest.Player, sendBonusRequest.Amount); err != nil {
 		log.Warn().Msgf("failed to send bonus: %s", err.Error())
 		respondWithError(writer, http.StatusInternalServerError, "failed to send bonus: "+err.Error())
+  }
+  
+  respondWithJSON(writer, http.StatusOK, nil)
+}
+
+func (app *App) AddGameNoBonus(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/add_game_no_bonus")
+
+	addGameNoBonusRequest := struct {
+		GameAccount string `json:"game_account"`
+	}{}
+
+	if err := json.NewDecoder(req.Body).Decode(&addGameNoBonusRequest); err != nil {
+		log.Debug().Msgf("failed to decode add game no bonus request: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to decode add game no bonus request: "+err.Error())
+	}
+
+	if err := app.addGameNoBonus(addGameNoBonusRequest.GameAccount); err != nil {
+		log.Debug().Msgf("failed to add game no bonus: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to add game no bonus: "+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, nil)
+}
+
+func (app *App) RemoveGameNoBonus(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/remove_game_no_bonus")
+
+	rmGameNoBonusRequest := struct {
+		GameAccount string `json:"game_account"`
+	}{}
+
+	if err := json.NewDecoder(req.Body).Decode(&rmGameNoBonusRequest); err != nil {
+		log.Debug().Msgf("failed to decode remove game no bonus request: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to decode remove game no bonus request: "+err.Error())
+	}
+
+	if err := app.removeGameNoBonus(rmGameNoBonusRequest.GameAccount); err != nil {
+		log.Debug().Msgf("failed to remove game no bonus: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to remove game no bonus: "+err.Error())
 	}
 
 	respondWithJSON(writer, http.StatusOK, nil)
@@ -389,9 +461,12 @@ func (app *App) GetRouter() *mux.Router {
 	router.Handle("/metrics", metrics.GetHandler())
 
 	adminRouter := router.PathPrefix("/admin").Subrouter()
-	adminRouter.HandleFunc("/bonus_players", app.GetBonusPlayers).Methods("GET")
+	adminRouter.HandleFunc("/bonus_players/stats", app.GetBonusPlayersStats).Methods("GET")
+	adminRouter.HandleFunc("/bonus_players/balance", app.GetBonusPlayersBalance).Methods("GET")
 	adminRouter.HandleFunc("/convert_bonus", app.ConvertBonus).Methods("POST")
 	adminRouter.HandleFunc("/sendbon", app.SendBonus).Methods("POST")
+	adminRouter.HandleFunc("/add_game_no_bonus", app.AddGameNoBonus).Methods("POST")
+	adminRouter.HandleFunc("/remove_game_no_bonus", app.RemoveGameNoBonus).Methods("POST")
 
 	return &router
 }
