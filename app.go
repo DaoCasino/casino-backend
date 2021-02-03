@@ -392,6 +392,46 @@ func (app *App) ConvertBonus(writer ResponseWriter, req *Request) {
 	respondWithJSON(writer, http.StatusOK, nil)
 }
 
+func (app *App) AddGameNoBonus(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/add_game_no_bonus")
+
+	addGameNoBonusRequest := struct {
+		GameAccount string `json:"game_account"`
+	}{}
+
+	if err := json.NewDecoder(req.Body).Decode(&addGameNoBonusRequest); err != nil {
+		log.Debug().Msgf("failed to decode add game no bonus request: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to decode add game no bonus request: "+err.Error())
+	}
+
+	if err := app.addGameNoBonus(addGameNoBonusRequest.GameAccount); err != nil {
+		log.Debug().Msgf("failed to add game no bonus: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to add game no bonus: "+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, nil)
+}
+
+func (app *App) RemoveGameNoBonus(writer ResponseWriter, req *Request) {
+	log.Info().Msg("Called /admin/remove_game_no_bonus")
+
+	rmGameNoBonusRequest := struct {
+		GameAccount string `json:"game_account"`
+	}{}
+
+	if err := json.NewDecoder(req.Body).Decode(&rmGameNoBonusRequest); err != nil {
+		log.Debug().Msgf("failed to decode remove game no bonus request: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to decode remove game no bonus request: "+err.Error())
+	}
+
+	if err := app.removeGameNoBonus(rmGameNoBonusRequest.GameAccount); err != nil {
+		log.Debug().Msgf("failed to remove game no bonus: %s", err.Error())
+		respondWithError(writer, http.StatusInternalServerError, "failed to remove game no bonus: "+err.Error())
+	}
+
+	respondWithJSON(writer, http.StatusOK, nil)
+}
+
 func (app *App) GetRouter() *mux.Router {
 	var router mux.Router
 	router.HandleFunc("/ping", app.PingQuery).Methods("GET")
@@ -403,6 +443,8 @@ func (app *App) GetRouter() *mux.Router {
 	adminRouter.HandleFunc("/bonus_players/stats", app.GetBonusPlayersStats).Methods("GET")
 	adminRouter.HandleFunc("/bonus_players/balance", app.GetBonusPlayersBalance).Methods("GET")
 	adminRouter.HandleFunc("/convert_bonus", app.ConvertBonus).Methods("POST")
+	adminRouter.HandleFunc("/add_game_no_bonus", app.AddGameNoBonus).Methods("POST")
+	adminRouter.HandleFunc("/remove_game_no_bonus", app.RemoveGameNoBonus).Methods("POST")
 
 	return &router
 }
